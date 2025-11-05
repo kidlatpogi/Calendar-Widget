@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Notification, Tray, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, Notification, Tray, Menu, globalShortcut } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
@@ -19,6 +19,21 @@ let cfgManager = null;
 let icalProcessor = null;
 
 // --- 1. ConfigManager (Single Responsibility for Persistence) ---
+
+// Fallback IPC handler in case IPC calls arrive before WindowManager sets up handlers
+try {
+  ipcMain.handle('set-click-through', async (event, which, enabled) => {
+    try {
+      const bw = which === 'home' ? (windowManager && windowManager.homeWin) : (windowManager && windowManager.win);
+      if (!bw || bw.isDestroyed()) return false;
+      bw.setIgnoreMouseEvents(!!enabled, { forward: true });
+      return true;
+    } catch (e) {
+      console.error('fallback set-click-through failed', e);
+      return false;
+    }
+  });
+} catch (e) { /* ignore if handler already exists */ }
 
 class ConfigManager {
     constructor(cfgPath) {
@@ -235,11 +250,12 @@ class WindowManager {
     const windowOptions = {
       width: 400,
       height: 600,
+      // Use native window chrome so OS provides minimize/maximize/close
       transparent: true,
       frame: false,
-      alwaysOnTop: true,
+      alwaysOnTop: false,
       skipTaskbar: true,
-      zIndex: 0,
+      autoHideMenuBar: true,
       show: false,
       webPreferences: { preload: path.join(__dirname, 'preload.js'), nodeIntegration: false }
     };
@@ -251,15 +267,20 @@ class WindowManager {
     }
 
     this.win = new BrowserWindow(windowOptions);
+  // ensure the menu bar is hidden
+  try { this.win.setMenuBarVisibility(false); } catch (e) { /* ignore */ }
     this.win.loadFile(path.join(__dirname, 'HTML', 'index.html'));
-    
-    this.win.show();
+
+    // Show without focusing so the window doesn't raise above other windows on creation
+    this.win.once('ready-to-show', () => {
+      try { this.win.showInactive(); } catch (e) { try { this.win.show(); } catch {} }
+    });
     
     const cfg_ui = cfg.ui || {};
     
-    // Apply always-on-top setting
-    if (cfg_ui.alwaysOnTop) {
-      this.win.setAlwaysOnTop(true);
+    // Apply always-on-top setting explicitly (true or false)
+    if (typeof cfg_ui.alwaysOnTop === 'boolean') {
+      try { this.win.setAlwaysOnTop(!!cfg_ui.alwaysOnTop); } catch (e) { /* ignore */ }
     }
     
     // Apply opacity setting
@@ -290,15 +311,20 @@ class WindowManager {
     this.homeWin = new BrowserWindow({
       width: 340,
       height: 400,
+      // Use native frame for home window as well
       transparent: false,
-      frame: false,
-      alwaysOnTop: true,
-      skipTaskbar: false,
-      zIndex: 999,
+      frame: true,
+      alwaysOnTop: false,
+      skipTaskbar: true,
+      autoHideMenuBar: true,
       webPreferences: { preload: path.join(__dirname, 'preload.js'), nodeIntegration: false }
     });
 
     this.homeWin.loadFile(path.join(__dirname, 'HTML', 'home.html'));
+    try { this.homeWin.setMenuBarVisibility(false); } catch (e) { /* ignore */ }
+    this.homeWin.once('ready-to-show', () => {
+      try { this.homeWin.showInactive(); } catch (e) { try { this.homeWin.show(); } catch {} }
+    });
   }
 
     setupAutoLaunch() {
@@ -317,6 +343,32 @@ class WindowManager {
         } catch (e) {
             console.error('autoLaunch setup failed', e);
         }
+    }
+
+    // Toggle click-through (persist setting and apply to window)
+    toggleClickThrough() {
+      try {
+        const cfg = this.cfgManager.config || {};
+        cfg.ui = cfg.ui || {};
+        const cur = !!cfg.ui.clickThrough;
+        const next = !cur;
+        cfg.ui.clickThrough = next;
+        this.cfgManager.saveConfig(cfg);
+
+        if (this.win && !this.win.isDestroyed()) {
+          try { this.win.setIgnoreMouseEvents(!!next, { forward: true }); } catch (e) { }
+        }
+
+        // notify renderers about updated config
+        const sendUpdate = (w) => { if (w && !w.isDestroyed()) w.webContents.send('config-updated', cfg); };
+        sendUpdate(this.win);
+        sendUpdate(this.homeWin);
+
+        return next;
+      } catch (e) {
+        console.error('toggleClickThrough failed', e);
+        return null;
+      }
     }
 
     // Handle fetch interval change
@@ -365,8 +417,8 @@ class WindowManager {
         ipcMain.handle('open-main', async () => {
             this.createMainWindow();
             if (this.homeWin) { try { this.homeWin.close(); } catch {} this.homeWin = null; }
-            this.win.show();
-            this.win.focus();
+      // Show without focusing so it doesn't steal focus or float above other windows
+      try { this.win.showInactive(); } catch (e) { try { this.win.show(); } catch {} }
             return true;
         });
         
@@ -375,13 +427,33 @@ class WindowManager {
                 this.createHomeWindow();
             } else {
                 if (this.homeWin.isMinimized()) this.homeWin.restore();
-                this.homeWin.show();
-                this.homeWin.focus();
+        try { this.homeWin.showInactive(); } catch (e) { try { this.homeWin.show(); } catch {} }
             }
             return true;
         });
 
         ipcMain.handle('open-url', async (ev, url) => shell.openExternal(url));
+
+    ipcMain.handle('open-tutorial', async () => {
+      try {
+        const pdfPath = path.join(__dirname, 'Public', 'How to get ICal link.pdf');
+        if (fs.existsSync(pdfPath)) {
+          // shell.openPath will open the file with the default app
+          const res = await shell.openPath(pdfPath);
+          if (res) {
+            console.warn('shell.openPath returned:', res);
+            return false;
+          }
+          return true;
+        } else {
+          console.warn('Tutorial PDF not found at', pdfPath);
+          return false;
+        }
+      } catch (e) {
+        console.error('open-tutorial failed', e);
+        return false;
+      }
+    });
 
         ipcMain.handle('add-ical', async (ev, url) => {
             if (!url || typeof url !== 'string') throw new Error('Invalid URL');
@@ -470,6 +542,8 @@ class WindowManager {
             return false;
           }
         });
+
+        // (set-click-through handler is registered earlier as a fallback to avoid race conditions)
 
         ipcMain.handle('set-event-notifications', async (event, isEnabled) => {
           try {
@@ -637,19 +711,20 @@ class WindowManager {
 
         if (this.tray) {
             const ctxMenu = Menu.buildFromTemplate([
-                { label: 'Show Calendar', click: () => { if (this.win) { this.win.show(); this.win.focus(); } } },
-                { label: 'Refresh', click: () => { if (this.win) this.win.webContents.send('refresh-events'); } },
+        { label: 'Show Calendar', click: () => { if (this.win) { try { this.win.showInactive(); } catch (e) { try { this.win.show(); } catch {} } } } },
+        { label: 'Toggle Click-through', click: () => { try { const next = this.toggleClickThrough(); console.log('click-through toggled ->', next); } catch (e) { console.error(e); } } },
+        { label: 'Refresh', click: () => { if (this.win) this.win.webContents.send('refresh-events'); } },
                 { type: 'separator' },
                 { label: 'Quit', click: () => app.quit() }
             ]);
 
             this.tray.setContextMenu(ctxMenu);
-            this.tray.on('click', () => {
-                if (this.win) {
-                    if (this.win.isVisible()) this.win.hide();
-                    else { this.win.show(); this.win.focus(); }
-                }
-            });
+      this.tray.on('click', () => {
+        if (this.win) {
+          if (this.win.isVisible()) this.win.hide();
+          else { try { this.win.showInactive(); } catch (e) { try { this.win.show(); } catch {} } }
+        }
+      });
         }
     }
 }
@@ -657,6 +732,18 @@ class WindowManager {
 // --- Application Initialization ---
 
 app.whenReady().then(() => {
+    // Remove the default application menu so File/Edit/etc. are not visible
+    try {
+      // In development you may still want the menu; gate if needed
+      if (process.env.NODE_ENV !== 'development') {
+        Menu.setApplicationMenu(null);
+      } else {
+        // still remove the menu by default for a cleaner dev window; comment out if you want it
+        Menu.setApplicationMenu(null);
+      }
+    } catch (e) {
+      console.warn('Failed to clear application menu', e);
+    }
     cfgManager = new ConfigManager(cfgPath);
     icalProcessor = new IcalProcessor(cfgManager, null, null);
     windowManager = new WindowManager(cfgManager, icalProcessor);
@@ -676,6 +763,15 @@ app.whenReady().then(() => {
     const interval = (cfgManager.config.ui?.fetchInterval || 1) * 60 * 1000;
     icalProcessor.startPolling(interval);
     windowManager.setupTray();
+
+    // Register a global shortcut to toggle click-through quickly (Ctrl+Shift+C)
+    try {
+      globalShortcut.register('Control+Shift+C', () => {
+        try { const next = windowManager.toggleClickThrough(); console.log('Global shortcut toggled click-through ->', next); } catch (e) { console.error(e); }
+      });
+    } catch (e) {
+      console.warn('Failed to register global shortcut', e);
+    }
 });
 
 app.on('window-all-closed', () => {

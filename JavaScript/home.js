@@ -30,6 +30,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('main-menu')?.classList.add('hidden');
         document.getElementById('settings')?.classList.add('hidden');
         document.getElementById('add-ical-view')?.classList.add('hidden');
+        // Also ensure terms modal is hidden when switching views
+        document.getElementById('terms-modal')?.classList.add('hidden');
       }
     
       show(viewId) {
@@ -39,7 +41,9 @@ document.addEventListener('DOMContentLoaded', async () => {
           view.classList.remove('hidden');
           this.currentView = viewId;
         }
-        setTimeout(this.reportSize, 100);
+        // hide terms modal proactively (in case it was shown)
+        document.getElementById('terms-modal')?.classList.add('hidden');
+        setTimeout(() => this.reportSize(), 100);
       }
     
       async reportSize() {
@@ -63,6 +67,12 @@ document.addEventListener('DOMContentLoaded', async () => {
           await this.settingsManager.loadConfig();
           const config = this.settingsManager.config;
           
+          // Initialize terms checkbox from persisted config
+          const termsCheck = document.getElementById('terms-check');
+          const acceptBtn = document.getElementById('accept-btn');
+          if (termsCheck) termsCheck.checked = !!config.acceptedTerms;
+          if (acceptBtn) acceptBtn.disabled = !termsCheck.checked;
+
           if (config.acceptedTerms) {
             this.viewManager.show('main-menu');
           } else {
@@ -91,7 +101,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     
       setupEventListeners() {
         // Accept Terms
-        document.getElementById('accept-btn')?.addEventListener('click', () => this.acceptTerms());
+        const termsCheckEl = document.getElementById('terms-check');
+        const acceptBtnEl = document.getElementById('accept-btn');
+        if (termsCheckEl) {
+          termsCheckEl.addEventListener('change', (ev) => {
+            try { if (acceptBtnEl) acceptBtnEl.disabled = !ev.target.checked; } catch (e) { /* ignore */ }
+          });
+        }
+        if (acceptBtnEl) acceptBtnEl.addEventListener('click', () => this.acceptTerms());
         
         // Navigation
         document.getElementById('settings-btn')?.addEventListener('click', () => this.viewManager.show('settings'));
@@ -111,12 +128,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Terms & GitHub
         document.getElementById('view-terms')?.addEventListener('click', () => this.showTermsModal());
         document.getElementById('close-terms')?.addEventListener('click', () => this.hideTermsModal());
-        document.getElementById('github-btn')?.addEventListener('click', () => window.electronAPI.openUrl('https://github.com/your-repo'));
+  document.getElementById('github-btn')?.addEventListener('click', () => window.electronAPI.openUrl('https://github.com/your-repo'));
+  // Footer external links - open in default browser via preload
+  document.getElementById('footer-github')?.addEventListener('click', () => window.electronAPI.openUrl('https://github.com/kidlatpogi'));
+  document.getElementById('footer-portfolio')?.addEventListener('click', () => window.electronAPI.openUrl('https://www.zeusbautista.site/'));
+        // Tutorial
+        document.getElementById('tutorial-btn')?.addEventListener('click', async () => {
+          try {
+            const ok = await window.electronAPI.openTutorial();
+            if (!ok) alert('Unable to open tutorial PDF.');
+          } catch (e) {
+            alert('Failed to open tutorial: ' + e.message);
+          }
+        });
         
-        // Window Controls
-        document.getElementById('minimize-btn')?.addEventListener('click', () => window.electronAPI.minimizeWindow('home'));
-        document.getElementById('maximize-btn')?.addEventListener('click', () => window.electronAPI.toggleMaximizeWindow('home'));
-        document.getElementById('close-btn')?.addEventListener('click', () => window.electronAPI.closeWindow('home'));
+  // Use native window controls (OS title bar) — no custom handlers needed
       }
     
       async acceptTerms() {
@@ -166,17 +192,15 @@ document.addEventListener('DOMContentLoaded', async () => {
           await window.electronAPI.addIcal(url);
           
           status.textContent = '✓ Calendar added! Please refresh your calendar.';
-          status.style.background = 'rgba(163, 255, 51, 0.15)';
-          status.style.borderLeft = '2px solid #a3ff33';
-          status.style.color = '#fff';
-          status.style.padding = '8px';
-          status.style.borderRadius = '6px';
-          status.style.fontSize = '12px';
+          status.classList.remove('error');
+          status.classList.add('success');
+          status.textContent = '✓ Calendar added! Please refresh your calendar.';
           
           document.getElementById('ical-url').value = '';
           
           setTimeout(() => {
             status.textContent = '';
+            status.classList.remove('success');
             btn.disabled = false;
             btn.textContent = 'Add';
           }, 3000);

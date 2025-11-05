@@ -11,71 +11,72 @@
 
 <body>
   <div id="wrap">
-    <!-- Header with drag handle and window controls -->
-    <div id="header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; -webkit-app-region: drag;">
-      <h1 style="margin: 0; font-size: 14px; color: #fff; flex: 1;">Calendar Widget</h1>
-      <div id="window-controls" style="display: flex; gap: 8px; -webkit-app-region: no-drag;">
-        <button id="minimize-btn" class="window-btn" title="Minimize">−</button>
-        <button id="maximize-btn" class="window-btn" title="Maximize">□</button>
-        <button id="close-btn" class="window-btn close" title="Close">✕</button>
-      </div>
+    <div id="header">
+      <h1>Calendar Widget</h1>
     </div>
 
     <!-- Welcome View -->
     <div id="after" class="view card">
       <h2>Welcome</h2>
-      <p style="color: #fff;">Calendar Widget displays your Google Calendar events on your desktop.</p>
-      
-      <label style="color: #fff;">
+      <p>Calendar Widget displays your Google Calendar events on your desktop.</p>
+
+      <label>
         <input type="checkbox" id="terms-check" />
-        I accept the <button id="view-terms" class="link-btn">Terms & Conditions</button>
+        I accept the <button id="view-terms" class="link-btn" type="button">Terms & Conditions</button>
       </label>
 
-      <button id="accept-btn" class="primary">Accept & Continue</button>
-      <button id="github-btn">View on GitHub</button>
+      <button id="accept-btn" class="primary" type="button">Accept & Continue</button>
+      <button id="github-btn" type="button">View on GitHub</button>
     </div>
 
     <!-- Main Menu View -->
     <div id="main-menu" class="view card hidden">
-      <h2 style="color: #fff;">Calendar Widget</h2>
-      <button id="open-main" class="primary">Open Calendar</button>
-      <button id="settings-btn">Settings</button>
-      <button id="add-ical-btn">Add Calendar</button>
+      <h2>Calendar Widget</h2>
+      <button id="open-main" class="primary" type="button">Open Calendar</button>
+      <button id="settings-btn" type="button">Settings</button>
+      <button id="tutorial-btn" type="button">Tutorial</button>
+      <button id="add-ical-btn" type="button">Add Calendar</button>
     </div>
 
     <!-- Settings View -->
-    <div id="settings" class="view card hidden" style="display: flex; flex-direction: column; max-height: 70vh;">
-      <div style="overflow-y: auto; flex: 1; scrollbar-width: none; -ms-overflow-style: none;">
-        <style>
-          #settings > div::-webkit-scrollbar { display: none; }
-        </style>
-        <h2 style="color: #fff;">Settings</h2>
+    <div id="settings" class="view card hidden">
+      <div>
+        <h2>Settings</h2>
 
         <!-- System Settings -->
-        <h4 style="margin-top: 12px; color: white; font-size: 12px; text-transform: uppercase;">System</h4>
+        <h4>System</h4>
         <div class="setting-group">
-          <label style="color: #fff;">
+          <label>
             <input type="checkbox" id="auto-start" />
             Run on startup
           </label>
         </div>
 
         <div class="setting-group">
-          <label for="fetch-interval" style="color: #fff;">Fetch Interval (minutes):</label>
+          <label for="fetch-interval">Fetch Interval (minutes):</label>
           <select id="fetch-interval">
+            <!-- allow 1 through 14 minutes -->
             <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
             <option value="5">5</option>
+            <option value="6">6</option>
+            <option value="7">7</option>
+            <option value="8">8</option>
+            <option value="9">9</option>
             <option value="10">10</option>
-            <option value="15">15</option>
-            <option value="30">30</option>
-            <option value="60">60</option>
+            <option value="11">11</option>
+            <option value="12">12</option>
+            <option value="13">13</option>
+            <option value="14">14</option>
           </select>
         </div>
 
         <!-- Appearance -->
-        <h4 style="margin-top: 12px; color: white; font-size: 12px; text-transform: uppercase;">Appearance</h4>
+        <h4>Appearance</h4>
         <div class="setting-group">
-          <label for="font-family" style="color: #fff;">Font Family:</label>
+          <label for="font-family">Font Family:</label>
           <select id="font-family">
             <option value="Segoe UI">Segoe UI</option>
             <option value="Arial">Arial</option>
@@ -85,22 +86,22 @@
         </div>
 
         <div class="setting-group">
-          <label for="font-size" style="color: #fff;">Font Size:</label>
+          <label for="font-size">Font Size:</label>
           <input type="number" id="font-size" min="10" max="20" value="13" />
         </div>
 
         <div class="setting-group">
-          <label for="schedule-color" style="color: #fff;">Event Title Color:</label>
+          <label for="schedule-color">Event Title Color:</label>
           <input type="color" id="schedule-color" value="#ffffff" />
         </div>
 
         <div class="setting-group">
-          <label for="datetime-color" style="color: #fff;">Time Color:</label>
+          <label for="datetime-color">Time Color:</label>
           <input type="color" id="datetime-color" value="#cfe9ff" />
         </div>
 
         <div class="setting-group">
-          <label for="highlight-color" style="color: #fff;">Highlight Color:</label>
+          <label for="highlight-color">Highlight Color:</label>
           <input type="color" id="highlight-color" value="#a3ff33" />
         </div>
       </div>
@@ -108,27 +109,35 @@
       <!-- Sticky Actions Footer -->
       <div class="settings-footer">
         <div class="settings-actions">
-          <button id="save-settings" class="primary" style="flex: 1;">Save</button>
-          <button id="cancel-settings" class="secondary" style="flex: 1;">Cancel</button>
+          <button id="save-settings" class="primary" type="button">Save</button>
+          <button id="cancel-settings" class="secondary" type="button">Cancel</button>
         </div>
       </div>
     </div>
 
     <!-- Add Calendar View -->
     <div id="add-ical-view" class="view card hidden">
-      <h2 style="color: #fff;">Add Calendar</h2>
-      <p style="color: #fff;">Paste your Google Calendar iCal URL:</p>
-      <input type="text" id="ical-url" placeholder="https://calendar.google.com/calendar/ical/..." style="color: #fff;" />
-      <button id="add-ical" class="primary">Add</button>
-      <button id="back-to-main">Back</button>
+      <h2>Add Calendar</h2>
+      <p>Paste your Google Calendar iCal URL:</p>
+      <input type="text" id="ical-url" placeholder="https://calendar.google.com/calendar/ical/..." />
+      <button id="add-ical" class="primary" type="button">Add</button>
+      <button id="back-to-main" type="button">Back</button>
     </div>
+
+    <footer id="footer" class="view card" aria-hidden="false">
+      <div id="footer-links" style="text-align:center; font-size:12px; color:#aaa;">
+        <span>© 2025 Zeus Bautista</span>
+  <button id="footer-github" type="button" class="link-btn">Github</button>
+  <button id="footer-portfolio" type="button" class="link-btn">Portfolio</button>
+      </div>
+    </footer>
 
     <!-- Terms Modal -->
     <div id="terms-modal" class="modal hidden">
       <div class="modal-content">
-        <button id="close-terms" class="close-btn">&times;</button>
-        <h3 style="color: #fff;">Terms & Conditions</h3>
-        <div class="terms-text" style="color: #fff;">
+        <button id="close-terms" class="close-btn" type="button">&times;</button>
+        <h3>Terms & Conditions</h3>
+        <div class="terms-text">
           <p><strong>By using Calendar Widget, you agree to:</strong></p>
           <ul>
             <li>Your calendar data is processed locally on your machine</li>

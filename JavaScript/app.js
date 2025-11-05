@@ -4,6 +4,35 @@ const listEl = document.getElementById('list');
 const statusEl = document.getElementById('status');
 const refreshBtn = document.getElementById('refresh');
 const homeBtn = document.getElementById('home-btn');
+const controlsEl = document.getElementById('control-actions');
+
+// click-through toggle button (injected)
+let clickThroughEnabled = false;
+const ctBtn = document.createElement('button');
+ctBtn.id = 'clickthrough-btn';
+ctBtn.title = 'Toggle click-through (allow clicks to pass through widget)';
+ctBtn.textContent = 'Click-through: Off';
+ctBtn.style.marginLeft = '6px';
+ctBtn.style.border = '1px solid rgba(255,255,255,0.16)';
+ctBtn.style.background = 'rgba(255,255,255,0.02)';
+ctBtn.style.color = '#fff';
+ctBtn.style.padding = '6px 8px';
+ctBtn.style.borderRadius = '6px';
+ctBtn.style.cursor = 'pointer';
+if (controlsEl) controlsEl.appendChild(ctBtn);
+else document.body.appendChild(ctBtn);
+
+// Make the toggle button keyboard-accessible and show hotkey
+ctBtn.tabIndex = 0;
+ctBtn.title = ctBtn.title + ' — Hotkey: Ctrl+Shift+C';
+ctBtn.addEventListener('keydown', async (ev) => {
+  try {
+    if (ev.key === 'Enter' || ev.key === ' ' || ev.key === 'Spacebar') {
+      ev.preventDefault();
+      ctBtn.click();
+    }
+  } catch (e) { /* ignore */ }
+});
 
 function setStatus(msg) {
   if (statusEl) statusEl.textContent = msg || '';
@@ -198,6 +227,89 @@ if (homeBtn) homeBtn.addEventListener('click', async () => {
   catch (e) { console.error('openHome failed', e); setStatus('Failed to open welcome'); }
 });
 
+// Toggle click-through permanently
+if (ctBtn) ctBtn.addEventListener('click', async () => {
+  try {
+    clickThroughEnabled = !clickThroughEnabled;
+    ctBtn.textContent = 'Click-through: ' + (clickThroughEnabled ? 'On' : 'Off');
+    if (window.electronAPI && window.electronAPI.setClickThrough) {
+      await window.electronAPI.setClickThrough('main', clickThroughEnabled);
+    }
+    // Persist setting in config UI
+    if (window.electronAPI && window.electronAPI.setConfig) {
+      await window.electronAPI.setConfig({ clickThrough: !!clickThroughEnabled });
+    }
+  } catch (e) { console.error('toggle click-through failed', e); }
+});
+
+// Keyboard fallback: Ctrl+Shift+C toggles click-through from the renderer in case the on-screen control is unreachable
+window.addEventListener('keydown', async (ev) => {
+  try {
+    if (ev.ctrlKey && ev.shiftKey && (ev.code === 'KeyC' || ev.key === 'C' || ev.key === 'c')) {
+      ev.preventDefault();
+      clickThroughEnabled = !clickThroughEnabled;
+      if (ctBtn) ctBtn.textContent = 'Click-through: ' + (clickThroughEnabled ? 'On' : 'Off');
+      if (window.electronAPI && window.electronAPI.setClickThrough) await window.electronAPI.setClickThrough('main', clickThroughEnabled);
+      if (window.electronAPI && window.electronAPI.setConfig) await window.electronAPI.setConfig({ clickThrough: !!clickThroughEnabled });
+    }
+  } catch (e) { /* ignore */ }
+});
+
+// When click-through is enabled, the window may forward pointer events but still ignore mouse events.
+// To keep the UI usable, listen for pointer events at the document level and manually dispatch clicks
+// to interactive elements under the pointer using elementFromPoint.
+document.addEventListener('pointerdown', async (ev) => {
+  try {
+    if (!clickThroughEnabled) return;
+    // Use elementsFromPoint to find all elements at the pointer position (more robust)
+    const x = ev.clientX;
+    const y = ev.clientY;
+    const elems = document.elementsFromPoint(x, y);
+    if (!elems || elems.length === 0) return;
+
+    // Helper: check if an element is visible and accepts pointer events
+    const isInteractiveCandidate = (el) => {
+      if (!el) return false;
+      if (!(el instanceof Element)) return false;
+      const style = window.getComputedStyle(el);
+      if (style.visibility === 'hidden' || style.display === 'none' || style.pointerEvents === 'none') return false;
+      return true;
+    };
+
+    let target = null;
+    for (const el of elems) {
+      if (!isInteractiveCandidate(el)) continue;
+      const interactive = el.closest('button, a, input, select, textarea, [role="button"]');
+      if (interactive && isInteractiveCandidate(interactive)) { target = interactive; break; }
+      // fallback: clickable element itself
+      if (el.matches && el.matches('button, a, input, select, textarea, [role="button"]')) { target = el; break; }
+    }
+
+    if (!target) return;
+
+    try { ev.preventDefault(); ev.stopPropagation(); } catch (e) { /* ignore */ }
+
+    // If disabled, ignore
+    if (target.disabled) return;
+
+    const tag = (target.tagName || '').toUpperCase();
+    if (tag === 'INPUT' || tag === 'TEXTAREA') {
+      target.focus();
+      if (target.type === 'checkbox' || target.type === 'radio') {
+        target.checked = !target.checked;
+        target.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    } else if (tag === 'SELECT') {
+      target.focus();
+      // Try to open native dropdown; calling click() may help in many environments
+      try { target.click(); } catch (e) { /* ignore */ }
+    } else {
+      // Use the element's native click() to ensure attached listeners run
+      try { target.click(); } catch (e) { try { target.dispatchEvent(new MouseEvent('click', { bubbles: true })); } catch (ee) { /* ignore */ } }
+    }
+  } catch (e) { /* ignore */ }
+}, { capture: true, passive: false });
+
 if (listEl && window.MutationObserver) {
   const mo = new MutationObserver(() => setTimeout(reportAppSize, 80));
   mo.observe(listEl, { childList: true, subtree: true, characterData: true });
@@ -208,15 +320,53 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (window.electronAPI && window.electronAPI.listConfig) {
       const cfg = await window.electronAPI.listConfig();
       await applyUiFromConfig(cfg);
+      // apply click-through from config
+      if (cfg.ui && typeof cfg.ui.clickThrough === 'boolean') {
+        clickThroughEnabled = !!cfg.ui.clickThrough;
+        if (ctBtn) ctBtn.textContent = 'Click-through: ' + (clickThroughEnabled ? 'On' : 'Off');
+        if (window.electronAPI && window.electronAPI.setClickThrough) {
+          await window.electronAPI.setClickThrough('main', clickThroughEnabled);
+        }
+      }
     }
   } catch (e) { /* ignore */ }
 
   if (window.electronAPI && window.electronAPI.onConfigUpdated) {
     window.electronAPI.onConfigUpdated((cfg) => {
-      applyUiFromConfig(cfg);
-      if (typeof load === 'function') load();
+      try {
+        // Keep UI settings in sync
+        applyUiFromConfig(cfg);
+        // Sync click-through state if changed externally (tray/global shortcut)
+        if (cfg && cfg.ui && typeof cfg.ui.clickThrough === 'boolean') {
+          clickThroughEnabled = !!cfg.ui.clickThrough;
+          if (ctBtn) ctBtn.textContent = 'Click-through: ' + (clickThroughEnabled ? 'On' : 'Off');
+        }
+        if (typeof load === 'function') load();
+      } catch (e) { /* ignore */ }
     });
   }
 
   load();
 });
+
+// Drag handle behavior: while pressing on drag-handle, make window clickable to allow dragging,
+// then restore click-through state afterwards. This makes the widget otherwise click-through.
+const dragHandle = document.getElementById('drag-handle');
+if (dragHandle) {
+  dragHandle.addEventListener('pointerdown', async (ev) => {
+    try {
+      // Ensure window receives mouse events while dragging
+      if (window.electronAPI && window.electronAPI.setClickThrough) await window.electronAPI.setClickThrough('main', false);
+    } catch (e) { /* ignore */ }
+  });
+
+  const restore = async () => {
+    try {
+      if (window.electronAPI && window.electronAPI.setClickThrough) await window.electronAPI.setClickThrough('main', clickThroughEnabled);
+    } catch (e) { /* ignore */ }
+  };
+
+  dragHandle.addEventListener('pointerup', restore);
+  dragHandle.addEventListener('pointercancel', restore);
+  dragHandle.addEventListener('pointerleave', restore);
+}

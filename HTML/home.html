@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="../CSS/home-styles.css" />
+  <link rel="stylesheet" href="../CSS/settings-styles.css" />
+  <title>Welcome</title>
+</head>
+
+<body>
+  <div id="wrap">
+    <!-- Header with drag handle and window controls -->
+    <div id="header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; -webkit-app-region: drag;">
+      <h1 style="margin: 0; font-size: 14px; color: #fff; flex: 1;">Calendar Widget</h1>
+      <div id="window-controls" style="display: flex; gap: 8px; -webkit-app-region: no-drag;">
+        <button id="minimize-btn" class="window-btn" title="Minimize">−</button>
+        <button id="maximize-btn" class="window-btn" title="Maximize">□</button>
+        <button id="close-btn" class="window-btn close" title="Close">✕</button>
+      </div>
+    </div>
+
+    <!-- Welcome View -->
+    <div id="after" class="view card">
+      <h2>Welcome</h2>
+      <p style="color: #fff;">Calendar Widget displays your Google Calendar events on your desktop.</p>
+      
+      <label style="color: #fff;">
+        <input type="checkbox" id="terms-check" />
+        I accept the <button id="view-terms" class="link-btn">Terms & Conditions</button>
+      </label>
+
+      <button id="accept-btn" class="primary">Accept & Continue</button>
+      <button id="github-btn">View on GitHub</button>
+    </div>
+
+    <!-- Main Menu View -->
+    <div id="main-menu" class="view card hidden">
+      <h2 style="color: #fff;">Calendar Widget</h2>
+      <button id="open-main" class="primary">Open Calendar</button>
+      <button id="settings-btn">Settings</button>
+      <button id="add-ical-btn">Add Calendar</button>
+    </div>
+
+    <!-- Settings View -->
+    <div id="settings" class="view card hidden" style="display: flex; flex-direction: column; max-height: 70vh;">
+      <div style="overflow-y: auto; flex: 1; scrollbar-width: none; -ms-overflow-style: none;">
+        <style>
+          #settings > div::-webkit-scrollbar { display: none; }
+        </style>
+        <h2 style="color: #fff;">Settings</h2>
+
+        <!-- System Settings -->
+        <h4 style="margin-top: 12px; color: white; font-size: 12px; text-transform: uppercase;">System</h4>
+        <div class="setting-group">
+          <label style="color: #fff;">
+            <input type="checkbox" id="auto-start" />
+            Run on startup
+          </label>
+        </div>
+
+        <div class="setting-group">
+          <label for="fetch-interval" style="color: #fff;">Fetch Interval (minutes):</label>
+          <select id="fetch-interval">
+            <option value="1">1</option>
+            <option value="5">5</option>
+            <option value="10">10</option>
+            <option value="15">15</option>
+            <option value="30">30</option>
+            <option value="60">60</option>
+          </select>
+        </div>
+
+        <!-- Appearance -->
+        <h4 style="margin-top: 12px; color: white; font-size: 12px; text-transform: uppercase;">Appearance</h4>
+        <div class="setting-group">
+          <label for="font-family" style="color: #fff;">Font Family:</label>
+          <select id="font-family">
+            <option value="Segoe UI">Segoe UI</option>
+            <option value="Arial">Arial</option>
+            <option value="Helvetica">Helvetica</option>
+            <option value="Courier New">Courier New</option>
+          </select>
+        </div>
+
+        <div class="setting-group">
+          <label for="font-size" style="color: #fff;">Font Size:</label>
+          <input type="number" id="font-size" min="10" max="20" value="13" />
+        </div>
+
+        <div class="setting-group">
+          <label for="schedule-color" style="color: #fff;">Event Title Color:</label>
+          <input type="color" id="schedule-color" value="#ffffff" />
+        </div>
+
+        <div class="setting-group">
+          <label for="datetime-color" style="color: #fff;">Time Color:</label>
+          <input type="color" id="datetime-color" value="#cfe9ff" />
+        </div>
+
+        <div class="setting-group">
+          <label for="highlight-color" style="color: #fff;">Highlight Color:</label>
+          <input type="color" id="highlight-color" value="#a3ff33" />
+        </div>
+      </div>
+
+      <!-- Sticky Actions Footer -->
+      <div class="settings-footer">
+        <div class="settings-actions">
+          <button id="save-settings" class="primary" style="flex: 1;">Save</button>
+          <button id="cancel-settings" class="secondary" style="flex: 1;">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Calendar View -->
+    <div id="add-ical-view" class="view card hidden">
+      <h2 style="color: #fff;">Add Calendar</h2>
+      <p style="color: #fff;">Paste your Google Calendar iCal URL:</p>
+      <input type="text" id="ical-url" placeholder="https://calendar.google.com/calendar/ical/..." style="color: #fff;" />
+      <button id="add-ical" class="primary">Add</button>
+      <button id="back-to-main">Back</button>
+    </div>
+
+    <!-- Terms Modal -->
+    <div id="terms-modal" class="modal hidden">
+      <div class="modal-content">
+        <button id="close-terms" class="close-btn">&times;</button>
+        <h3 style="color: #fff;">Terms & Conditions</h3>
+        <div class="terms-text" style="color: #fff;">
+          <p><strong>By using Calendar Widget, you agree to:</strong></p>
+          <ul>
+            <li>Your calendar data is processed locally on your machine</li>
+            <li>No data is sent to external servers (except Google Calendar API for fetching)</li>
+            <li>This is an open-source project provided as-is</li>
+            <li>The developer is not responsible for any issues or data loss</li>
+            <li>Your iCal URLs are stored in the config file for convenience</li>
+          </ul>
+          <p><strong>Privacy:</strong> All calendar events are cached locally. No telemetry or tracking is used.</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="status"></div>
+  </div>
+
+  <script src="../JavaScript/home.js"></script>
+</body>
+
+</html>

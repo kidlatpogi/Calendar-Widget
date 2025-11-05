@@ -1,0 +1,129 @@
+/* Transparent background - BrowserWindow in Electron must set transparent:true */
+:root {
+  --app-font-family: "Segoe UI", SegoeUI, Arial, sans-serif;
+  --app-font-size: 13px;
+  --schedule-color: #ffffff;
+  --date-time-color: #cfe9ff;
+  --highlight-color: #a3ff33;
+}
+
+html,body{
+  height:100%;
+  margin:0;
+  background:transparent;
+  font-family: var(--app-font-family);
+  font-size: var(--app-font-size);
+  overflow:hidden;
+  pointer-events: none;
+}
+
+#app{
+  width: 640px;
+  max-width: calc(100vw - 40px);
+  min-width: 360px;
+  min-height: 240px;
+  color: rgba(255,255,255,0.95);
+  -webkit-user-select: none;
+  padding: 12px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  pointer-events: auto;
+  font-family: var(--app-font-family);
+  font-size: var(--app-font-size);
+}
+
+/* header controls */
+#controls{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-bottom:6px;
+  pointer-events: auto;
+}
+
+/* drag handle */
+#drag-handle{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex:1;
+  -webkit-app-region: drag;
+  cursor: default;
+  user-select: none;
+  pointer-events: auto;
+}
+
+.app-title{
+  font-weight:600;
+  font-size:14px;
+  color:rgba(255,255,255,0.95);
+}
+
+/* actions to the right */
+#control-actions{
+  display:flex;
+  gap:8px;
+  -webkit-app-region: no-drag;
+  pointer-events: auto;
+}
+
+/* buttons style */
+#control-actions button{
+  background: rgba(255,255,255,0.06);
+  border: 0;
+  border-radius: 6px;
+  padding: 6px 8px;
+  color: #fff;
+  cursor: pointer;
+  pointer-events: auto;
+  font-family: var(--app-font-family);
+  font-size: var(--app-font-size);
+}
+
+#control-actions button:hover{
+  background: rgba(255,255,255,0.10);
+}
+
+/* list area - no scrollbar */
+#list{
+  padding: 8px;
+  flex: 1 1 auto;
+  min-height: 140px;
+  overflow: hidden;
+  pointer-events: auto;
+  font-family: var(--app-font-family);
+  font-size: var(--app-font-size);
+}
+
+/* day/event styles */
+.day{ margin-bottom:8px; }
+.day-header{ 
+  font-weight:700; 
+  margin-bottom:6px; 
+  color: var(--schedule-color);
+}
+.event{ margin-left:8px; padding:4px 0; cursor: default; pointer-events: auto; }
+.time{ 
+  color: var(--date-time-color); 
+  margin-right:6px; 
+}
+.title{ 
+  color: var(--schedule-color); 
+}
+.no-events{ color:rgba(255,255,255,0.6); font-style:italic; }
+.highlight{ 
+  color: var(--highlight-color) !important; 
+}
+
+/* status */
+#status{ margin-top:10px; color: rgba(255,255,255,0.65); font-size:12px; pointer-events: auto; }
+
+.drag-icon{
+  width:16px;
+  height:16px;
+  vertical-align:middle;
+  margin-right:4px;
+  opacity:0.7;
+}

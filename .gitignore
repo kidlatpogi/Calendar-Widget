@@ -1,0 +1,7 @@
+# Node / project
+node_modules/
+dist/
+build/
+
+# Local config - do NOT commit
+config.json

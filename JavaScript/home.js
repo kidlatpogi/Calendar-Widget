@@ -93,10 +93,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('auto-start').checked = ui.autoStart || false;
         document.getElementById('fetch-interval').value = ui.fetchInterval || 1;
         document.getElementById('font-family').value = ui.fontFamily || 'Segoe UI';
-        document.getElementById('font-size').value = ui.fontSize || 13;
+          document.getElementById('font-size').value = ui.fontSize || 13;
         document.getElementById('schedule-color').value = ui.scheduleColor || '#ffffff';
         document.getElementById('datetime-color').value = ui.dateTimeColor || '#cfe9ff';
         document.getElementById('highlight-color').value = ui.highlightColor || '#a3ff33';
+  // Display settings
+  document.getElementById('display-days').value = ui.displayDays || 7;
       }
     
       setupEventListeners() {
@@ -120,6 +122,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         // Settings Actions
         document.getElementById('save-settings')?.addEventListener('click', () => this.saveSettings());
+        // Live preview & persist font-size on change (debounced)
+        const fontSizeEl = document.getElementById('font-size');
+        if (fontSizeEl) {
+          let _t = null;
+          fontSizeEl.addEventListener('input', (ev) => {
+            try {
+              const v = Number(ev.target.value) || 13;
+              document.documentElement.style.setProperty('--app-font-size', v + 'px');
+              // update derived sizes too (small/large)
+              document.documentElement.style.setProperty('--app-font-small', Math.max(10, v - 2) + 'px');
+              document.documentElement.style.setProperty('--app-font-large', Math.max(12, v + 1) + 'px');
+              if (_t) clearTimeout(_t);
+              _t = setTimeout(async () => {
+                try { await window.electronAPI.setConfig({ fontSize: Number(v) }); } catch (e) {}
+              }, 350);
+            } catch (e) { /* ignore */ }
+          });
+        }
         document.getElementById('cancel-settings')?.addEventListener('click', () => this.viewManager.show('main-menu'));
         
         // Add Calendar
@@ -221,6 +241,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             scheduleColor: document.getElementById('schedule-color').value,
             dateTimeColor: document.getElementById('datetime-color').value,
             highlightColor: document.getElementById('highlight-color').value
+            ,displayDays: Number(document.getElementById('display-days').value) || 7
           };
     
           await this.settingsManager.saveSettings(settings);

@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, Notification, Tray, Menu, globalShortcut } = require('electron');
+const { screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
@@ -8,7 +9,48 @@ const { shell } = require('electron');
 const AutoLaunch = require('auto-launch');
 
 // define path to persistent config file used by loadConfig/saveConfig
-const cfgPath = path.join(__dirname, 'config.json');
+// At runtime we prefer a per-user writable location under app.getPath('userData').
+// Packaged defaults are stored inside the app resources (assets/default-config.json).
+const packagedDefaultCfg = path.join(__dirname, 'assets', 'default-config.json');
+const userCfgDir = app.getPath ? app.getPath('userData') : __dirname;
+const cfgPath = path.join(userCfgDir, 'config.json');
+
+// Ensure that if no user config exists we copy the packaged default into userData
+function ensureUserConfigExists() {
+  try {
+    if (!fs.existsSync(cfgPath)) {
+      // Try to copy from packaged default; if not found, write a minimal default
+      if (fs.existsSync(packagedDefaultCfg)) {
+        try {
+          // Ensure user directory exists
+          try { fs.mkdirSync(userCfgDir, { recursive: true }); } catch (e) {}
+          fs.copyFileSync(packagedDefaultCfg, cfgPath);
+          console.log('Copied default config to userData:', cfgPath);
+        } catch (e) {
+          console.warn('Failed to copy packaged default config to userData', e);
+        }
+      } else {
+        // Write a sensible minimal default
+        try { fs.mkdirSync(userCfgDir, { recursive: true }); } catch (e) {}
+        const minimal = { icals: [], ui: {}, acceptedTerms: false, windowBounds: {} };
+        fs.writeFileSync(cfgPath, JSON.stringify(minimal, null, 2));
+        console.log('Wrote minimal config to userData:', cfgPath);
+      }
+    }
+  } catch (e) {
+    console.warn('ensureUserConfigExists failed', e);
+  }
+}
+
+// debug log files: userData if available, and repo local fallback for easy inspection during development
+const debugLogPathUser = path.join(app.getPath ? app.getPath('userData') : __dirname, 'resize-debug.log');
+const debugLogPathLocal = path.join(__dirname, 'resize-debug.log');
+
+function appendDebugLog(line) {
+  const entry = `${new Date().toISOString()} ${line}\n`;
+  try { fs.appendFileSync(debugLogPathUser, entry); } catch (e) { /* ignore */ }
+  try { fs.appendFileSync(debugLogPathLocal, entry); } catch (e) { /* ignore */ }
+}
 
 // Add these declarations so handlers can reference the windows safely
 let win = null;
@@ -249,7 +291,7 @@ class WindowManager {
     
     const windowOptions = {
       width: 400,
-      height: 600,
+      height: 620,
       // Use native window chrome so OS provides minimize/maximize/close
       transparent: true,
       frame: false,
@@ -329,6 +371,11 @@ class WindowManager {
 
     setupAutoLaunch() {
         try {
+      // Don't enable auto-launch during development (avoid registering electron.exe)
+      if (!app.isPackaged) {
+        console.log('Skipping auto-launch setup in development (app not packaged)');
+        return;
+      }
             const autoLauncher = new AutoLaunch({
                 name: 'Calendar Widget',
                 path: app.getPath('exe'),
@@ -487,10 +534,13 @@ class WindowManager {
                     const curW = cur[0] || 0;
                     const curH = cur[1] || 0;
 
-                    const newW = typeof desiredW === 'number' ? (persist ? desiredW : Math.max(curW, desiredW)) : curW;
-                    const newH = typeof desiredH === 'number' ? (persist ? desiredH : Math.max(curH, desiredH)) : curH;
+              // If the resize is persistent, prefer grow-only behavior to avoid shrinking
+              // the user's saved window size. For non-persistent requests (like fitting
+              // to content), allow both grow and shrink so the window matches the content.
+              const newW = typeof desiredW === 'number' ? (persist ? Math.max(curW, desiredW) : desiredW) : curW;
+              const newH = typeof desiredH === 'number' ? (persist ? Math.max(curH, desiredH) : desiredH) : curH;
 
-                    try { bw.setContentSize(newW, newH); } catch (e) { /* ignore */ }
+              try { bw.setContentSize(newW, newH); } catch (e) { /* ignore */ }
                     if (persist && typeof bounds.x === 'number' && typeof bounds.y === 'number') {
                         try { bw.setPosition(Math.round(bounds.x), Math.round(bounds.y)); } catch (e) { /* ignore */ }
                     }
@@ -498,6 +548,9 @@ class WindowManager {
 
                 if (which === 'main') applyFor(this.win);
                 if (which === 'home') applyFor(this.homeWin);
+
+                // Diagnostic logging: report what was requested and what is applied.
+                try { console.log(`[set-window-bounds] requested which=${which} desiredW=${desiredW} desiredH=${desiredH} persist=${persist}`); } catch (e) {}
 
                 if (persist) {
                   const cfg = this.cfgManager.config;
@@ -509,6 +562,25 @@ class WindowManager {
                   if (typeof bounds.y === 'number') cfg.windowBounds[which].y = Math.round(bounds.y);
                   this.cfgManager.saveConfig();
                 }
+
+                // If not persistent, cap the requested size to the display work area to avoid
+                // requesting a window size larger than the available screen, which can lead
+                // to partial clipping or OS-level limitations.
+                try {
+                  const targetWin = which === 'main' ? this.win : this.homeWin;
+                  if (targetWin && !targetWin.isDestroyed()) {
+                    const winBounds = targetWin.getBounds();
+                    const disp = screen.getDisplayMatching(winBounds) || screen.getPrimaryDisplay();
+                    const work = disp.workAreaSize || disp.size || { width: 800, height: 600 };
+                    const maxContentH = Math.max(160, Math.floor(work.height - 80));
+                    const maxContentW = Math.max(200, Math.floor(work.width - 40));
+                    // clamp new sizes
+                    if (typeof newH === 'number') newH = Math.min(newH, maxContentH);
+                    if (typeof newW === 'number') newW = Math.min(newW, maxContentW);
+                    try { targetWin.setContentSize(newW, newH); } catch (e) { /* ignore */ }
+                    try { const applied = targetWin.getContentSize(); console.log(`[set-window-bounds] applied contentSize for ${which}: ${applied[0]}x${applied[1]}`); } catch (e) {}
+                  }
+                } catch (e) { /* ignore display calc errors */ }
 
                 return true;
             } catch (e) {
@@ -589,6 +661,26 @@ class WindowManager {
         ipcMain.handle('close-window', (event, windowName) => {
           const win = windowName === 'home' ? this.homeWin : this.win;
           if (win) win.close();
+        });
+
+        // Toggle visibility: hide if visible, showInactive if hidden
+        ipcMain.handle('toggle-visibility', (event, windowName = 'main') => {
+          const win = windowName === 'home' ? this.homeWin : this.win;
+          if (!win || win.isDestroyed()) return false;
+          try {
+            if (win.isVisible()) { win.hide(); }
+            else { try { win.showInactive(); } catch (e) { try { win.show(); } catch {} } }
+            return true;
+          } catch (e) { console.error('toggle-visibility failed', e); return false; }
+        });
+
+        // Helper to read current content size for diagnostics and verification
+        ipcMain.handle('get-content-size', (event, windowName) => {
+          try {
+            const bw = windowName === 'home' ? this.homeWin : this.win;
+            if (!bw || bw.isDestroyed()) return null;
+            return bw.getContentSize();
+          } catch (e) { return null; }
         });
     }
 
@@ -732,6 +824,8 @@ class WindowManager {
 // --- Application Initialization ---
 
 app.whenReady().then(() => {
+  // Ensure a per-user config exists (copy packaged defaults on first run)
+  ensureUserConfigExists();
     // Remove the default application menu so File/Edit/etc. are not visible
     try {
       // In development you may still want the menu; gate if needed
@@ -744,7 +838,9 @@ app.whenReady().then(() => {
     } catch (e) {
       console.warn('Failed to clear application menu', e);
     }
-    cfgManager = new ConfigManager(cfgPath);
+  cfgManager = new ConfigManager(cfgPath);
+  // Inform where debug logs will be written
+  try { console.log('resize debug logs:', debugLogPathUser, debugLogPathLocal); appendDebugLog('app started'); } catch (e) {}
     icalProcessor = new IcalProcessor(cfgManager, null, null);
     windowManager = new WindowManager(cfgManager, icalProcessor);
     
@@ -769,6 +865,7 @@ app.whenReady().then(() => {
       globalShortcut.register('Control+Shift+C', () => {
         try { const next = windowManager.toggleClickThrough(); console.log('Global shortcut toggled click-through ->', next); } catch (e) { console.error(e); }
       });
+      // NOTE: removed global Ctrl+Shift+M registration - collapse toggle will be handled in renderer
     } catch (e) {
       console.warn('Failed to register global shortcut', e);
     }

@@ -1,0 +1,12 @@
+{
+  "icals": [],
+  "ui": {
+    "fontSize": 14,
+    "collapsed": false,
+    "clickThrough": false,
+    "autoStart": false,
+    "fetchInterval": 1
+  },
+  "acceptedTerms": false,
+  "windowBounds": {}
+}

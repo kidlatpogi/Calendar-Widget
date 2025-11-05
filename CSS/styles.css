@@ -2,6 +2,8 @@
 :root {
   --app-font-family: "Segoe UI", SegoeUI, Arial, sans-serif;
   --app-font-size: 13px;
+  --app-font-small: 11px;
+  --app-font-large: 14px;
   --schedule-color: #ffffff;
   --date-time-color: #cfe9ff;
   --highlight-color: #a3ff33;
@@ -24,6 +26,7 @@ html,body{
   min-height: 240px;
   color: rgba(255,255,255,0.95);
   -webkit-user-select: none;
+  user-select: none;
   padding: 12px;
   box-sizing: border-box;
   display: flex;
@@ -32,6 +35,7 @@ html,body{
   pointer-events: auto;
   font-family: var(--app-font-family);
   font-size: var(--app-font-size);
+  -webkit-app-region: drag; /* make the app area draggable by default */
 }
 
 /* header controls */
@@ -41,12 +45,14 @@ html,body{
   gap:8px;
   margin-bottom:6px;
   pointer-events: auto;
+  -webkit-app-region: drag; /* allow dragging from header area */
 }
 
 /* drag handle */
 #drag-handle{
   display:flex;
-  align-items:center;
+  flex-direction: column;
+  align-items: stretch;
   gap:8px;
   flex:1;
   -webkit-app-region: drag;
@@ -55,9 +61,45 @@ html,body{
   pointer-events: auto;
 }
 
+/* Small explicit drag bar above the list to make drag interactions reliable */
+#drag-bar{
+  height:36px;
+  min-height:36px;
+  width:100%;
+  background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+  border-radius:6px;
+  margin-bottom:8px;
+  -webkit-app-region: drag; /* ensure this small bar is draggable */
+  pointer-events: auto; /* receive pointer events so renderer can toggle click-through while dragging */
+  cursor: grab;
+  z-index: 9999; /* put it above the list visually */
+  display:flex; align-items:center; justify-content:center;
+  color: rgba(255,255,255,0.6); font-size: var(--app-font-small);
+}
+#drag-bar::after{ content: "Drag to move"; opacity:0.6; }
+
+/* Collapsed UI: hide controls but keep a small visible drag handle */
+#app.collapsed #control-actions,
+#app.collapsed #control-actions-bottom,
+#app.collapsed #controls-grid { display: none !important; }
+#app.collapsed #drag-bar { height: 10px; min-height: 10px; cursor: grab; }
+#app.collapsed #drag-bar::after { content: ""; }
+#app.collapsed #list { margin-top: 2px; }
+
+/* Toast for collapse/expand notifications */
+#cw-toast {
+  transition: opacity 300ms ease-in-out;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Uncollapse button visible only when collapsed */
+#uncollapse-btn { display: none; -webkit-app-region: no-drag; }
+#app.collapsed #uncollapse-btn { display: inline-block; }
+
 .app-title{
   font-weight:600;
-  font-size:14px;
+  font-size: var(--app-font-large);
   color:rgba(255,255,255,0.95);
 }
 
@@ -65,9 +107,67 @@ html,body{
 #control-actions{
   display:flex;
   gap:8px;
-  -webkit-app-region: no-drag;
+  -webkit-app-region: no-drag; /* keep buttons clickable */
   pointer-events: auto;
 }
+
+/* secondary control row under main actions */
+#control-actions-bottom{
+  display:flex; flex-direction:column; gap:6px; margin-top:6px; -webkit-app-region: no-drag;
+}
+
+/* 2x2 controls grid */
+#controls-grid{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto;
+  gap:8px;
+  width: 260px;
+}
+
+#controls-grid > button,
+#controls-grid > div { display:flex; align-items:center; justify-content:center; }
+
+#ct-placeholder, #collapse-placeholder { -webkit-app-region: no-drag; }
+
+/* Home / Refresh button visual tweaks */
+#controls-grid > button {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: #fff;
+  font-weight: 600;
+}
+
+/* Drag label sits under Refresh, left of click-through */
+#drag-label { font-size:11px; color: rgba(255,255,255,0.6); }
+
+/* Collapsed banner shown under the content when collapsed */
+#collapsed-banner {
+  position: absolute;
+  left: 12px;
+  background: rgba(0,0,0,0.85);
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  opacity: 0;
+  transition: opacity 200ms ease-in-out, top 120ms ease-in-out;
+  z-index: 99999;
+  white-space: normal; /* allow wrapping */
+  max-width: calc(100% - 100px);
+  text-align: left;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+
+/* Ensure interactive elements are not part of the drag region */
+#control-actions, #control-actions *, button, input, select, a, .link-btn, #list, #status {
+  -webkit-app-region: no-drag;
+}
+
+/* Prevent the list from overlapping the drag bar (leave space at the top) */
+#list { margin-top: 0; }
 
 /* buttons style */
 #control-actions button{
@@ -91,23 +191,30 @@ html,body{
   padding: 8px;
   flex: 1 1 auto;
   min-height: 140px;
-  overflow: hidden;
+  overflow: auto; /* allow vertical scrolling when content overflows */
   pointer-events: auto;
   font-family: var(--app-font-family);
   font-size: var(--app-font-size);
+  -webkit-app-region: no-drag; /* make list interactive while allowing drag on container */
+}
+
+#status {
+  -webkit-app-region: no-drag; /* ensure status text is clickable/visible below the list */
 }
 
 /* day/event styles */
-.day{ margin-bottom:8px; }
+.day{ margin-bottom:4px; }
 .day-header{ 
   font-weight:700; 
-  margin-bottom:6px; 
+  margin-bottom:4px; 
   color: var(--schedule-color);
+  font-size: var(--app-font-large);
 }
-.event{ margin-left:8px; padding:4px 0; cursor: default; pointer-events: auto; }
+.event{ margin-left:6px; padding:2px 0; cursor: default; pointer-events: auto; font-size: var(--app-font-size); }
 .time{ 
   color: var(--date-time-color); 
   margin-right:6px; 
+  font-size: var(--app-font-small);
 }
 .title{ 
   color: var(--schedule-color); 
@@ -117,8 +224,13 @@ html,body{
   color: var(--highlight-color) !important; 
 }
 
+/* Make scrollbars visible on Windows */
+#list::-webkit-scrollbar { width: 10px; }
+#list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 6px; }
+#list::-webkit-scrollbar-track { background: transparent; }
+
 /* status */
-#status{ margin-top:10px; color: rgba(255,255,255,0.65); font-size:12px; pointer-events: auto; }
+#status{ margin-top:10px; color: rgba(255,255,255,0.65); font-size: var(--app-font-size); pointer-events: auto; }
 
 .drag-icon{
   width:16px;

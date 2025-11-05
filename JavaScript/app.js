@@ -4,7 +4,8 @@ const listEl = document.getElementById('list');
 const statusEl = document.getElementById('status');
 const refreshBtn = document.getElementById('refresh');
 const homeBtn = document.getElementById('home-btn');
-const controlsEl = document.getElementById('control-actions');
+// Prefer explicit placeholders in the controls grid if present
+const controlsEl = (document.getElementById('ct-placeholder') || document.getElementById('control-actions-bottom') || document.getElementById('control-actions'));
 
 // click-through toggle button (injected)
 let clickThroughEnabled = false;
@@ -19,8 +20,130 @@ ctBtn.style.color = '#fff';
 ctBtn.style.padding = '6px 8px';
 ctBtn.style.borderRadius = '6px';
 ctBtn.style.cursor = 'pointer';
-if (controlsEl) controlsEl.appendChild(ctBtn);
-else document.body.appendChild(ctBtn);
+// If we found the ct-placeholder, append there; otherwise append to fallback container
+const ctSlot = document.getElementById('ct-placeholder');
+if (ctSlot) ctSlot.appendChild(ctBtn); else if (controlsEl) controlsEl.appendChild(ctBtn); else document.body.appendChild(ctBtn);
+
+// collapse/expand toggle (injected)
+let collapsed = false;
+const collapseBtn = document.createElement('button');
+collapseBtn.id = 'collapse-btn';
+collapseBtn.title = 'Collapse controls';
+collapseBtn.textContent = '▾';
+collapseBtn.style.marginLeft = '6px';
+collapseBtn.style.border = '1px solid rgba(255,255,255,0.12)';
+collapseBtn.style.background = 'rgba(0,0,0,0.12)';
+collapseBtn.style.color = '#fff';
+collapseBtn.style.padding = '4px 8px';
+collapseBtn.style.borderRadius = '6px';
+collapseBtn.style.cursor = 'pointer';
+const collapseSlot = document.getElementById('collapse-placeholder');
+if (collapseSlot) collapseSlot.appendChild(collapseBtn); else if (controlsEl) controlsEl.appendChild(collapseBtn); else document.body.appendChild(collapseBtn);
+
+// restore state from localStorage if present
+try { collapsed = localStorage.getItem('cw.collapsed') === '1'; } catch (e) { collapsed = false; }
+function applyCollapsedState(invokedByKeyboard = false) {
+  try {
+    const appEl = document.getElementById('app');
+    if (!appEl) return;
+    if (collapsed) appEl.classList.add('collapsed'); else appEl.classList.remove('collapsed');
+    collapseBtn.textContent = collapsed ? '▸' : '▾';
+    try { localStorage.setItem('cw.collapsed', collapsed ? '1' : '0'); } catch (e) {}
+    // Persist collapsed state in config.json so it survives restarts
+    try {
+      if (window.electronAPI && window.electronAPI.setConfig) {
+        window.electronAPI.setConfig({ ui: { collapsed: !!collapsed } }).catch(() => {});
+      }
+    } catch (e) { /* ignore */ }
+    // show a short left-anchored tip indicating collapsed state only when invoked by keyboard
+    try { if (collapsed && invokedByKeyboard && typeof showLeftTip === 'function') showLeftTip('Ctrl+Shift+M to uncollapse', 2000); } catch (e) {}
+  } catch (e) { /* ignore */ }
+}
+collapseBtn.addEventListener('click', () => { collapsed = !collapsed; applyCollapsedState(); });
+applyCollapsedState();
+
+// Toast helper
+function showToast(text, ms = 1800) {
+  try {
+    let t = document.getElementById('cw-toast');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'cw-toast';
+      t.style.position = 'absolute';
+      t.style.right = '12px';
+      t.style.top = '12px';
+      t.style.padding = '8px 10px';
+      t.style.borderRadius = '8px';
+      t.style.background = 'rgba(0,0,0,0.6)';
+      t.style.color = '#fff';
+      t.style.fontSize = '12px';
+      t.style.zIndex = '99999';
+      document.getElementById('app')?.appendChild(t);
+    }
+    t.textContent = text;
+    t.style.opacity = '1';
+    setTimeout(() => { try { t.style.opacity = '0'; } catch (e) {} }, ms);
+  } catch (e) { /* ignore */ }
+}
+
+// Renderer-level key handler: Ctrl+Shift+M toggles collapse when window is focused
+window.addEventListener('keydown', (ev) => {
+  try {
+    if (ev.ctrlKey && ev.shiftKey && (ev.key === 'M' || ev.key === 'm')) {
+      ev.preventDefault();
+      collapsed = !collapsed;
+      applyCollapsedState(true);
+    }
+  } catch (e) { /* ignore */ }
+});
+
+// If collapsed, clicking the drag-bar should toggle window visibility (hide/show)
+try {
+  const dragBarEl = document.getElementById('drag-bar');
+  if (dragBarEl) {
+    // Also update the drag label in the controls grid
+    try { const dragLabel = document.getElementById('drag-label'); if (dragLabel) dragLabel.textContent = 'Drag to Move'; } catch (e) {}
+    // Create an 'uncollapse' button inside the drag bar so user can restore the UI
+    let uncollapseBtn = document.getElementById('uncollapse-btn');
+    if (!uncollapseBtn) {
+      uncollapseBtn = document.createElement('button');
+      uncollapseBtn.id = 'uncollapse-btn';
+      uncollapseBtn.title = 'Restore';
+      uncollapseBtn.textContent = '▾';
+      // styling: minimal and inline; CSS will manage visibility
+      uncollapseBtn.style.border = '1px solid rgba(255,255,255,0.14)';
+      uncollapseBtn.style.background = 'rgba(0,0,0,0.2)';
+      uncollapseBtn.style.color = '#fff';
+      uncollapseBtn.style.padding = '2px 6px';
+      uncollapseBtn.style.borderRadius = '6px';
+      uncollapseBtn.style.cursor = 'pointer';
+      uncollapseBtn.style.fontSize = '12px';
+      uncollapseBtn.style.marginLeft = '8px';
+      uncollapseBtn.style.display = 'none';
+      uncollapseBtn.setAttribute('aria-hidden', 'true');
+      // ensure it's clickable even though parent has -webkit-app-region: drag
+      uncollapseBtn.style.webkitAppRegion = 'no-drag';
+      uncollapseBtn.addEventListener('click', (ev) => {
+        try {
+          ev.stopPropagation();
+          collapsed = false;
+          applyCollapsedState();
+        } catch (e) { /* ignore */ }
+      });
+      dragBarEl.appendChild(uncollapseBtn);
+    }
+
+    dragBarEl.addEventListener('click', async (ev) => {
+      try {
+        // if click target is the uncollapse button, let its handler restore the UI
+        if (ev.target && ev.target.id === 'uncollapse-btn') return;
+        if (collapsed && window.electronAPI && window.electronAPI.toggleVisibility) {
+          await window.electronAPI.toggleVisibility('main');
+        }
+      } catch (e) { /* ignore */ }
+    });
+  }
+} catch (e) { /* ignore */ }
 
 // Make the toggle button keyboard-accessible and show hotkey
 ctBtn.tabIndex = 0;
@@ -99,7 +222,7 @@ function render(items, displayDays = 7) {
   }
 
   // Build display: show displayDays days starting from today (even if empty)
-  const displayDays_clamped = Math.max(5, Math.min(14, displayDays || 7));
+  const displayDays_clamped = Math.max(1, Math.min(14, displayDays || 7));
   const days = [];
   for (let i = 0; i < displayDays_clamped; i++) {
     const d = new Date(today);
@@ -151,6 +274,8 @@ function render(items, displayDays = 7) {
   setTimeout(reportAppSize, 80);
 }
 
+// (Always use days mode rendering)
+
 async function load() {
   setStatus('Loading events...');
   try {
@@ -166,8 +291,9 @@ async function load() {
     if (!window.electronAPI.fetchEvents) throw new Error('fetchEvents not available');
     const items = await window.electronAPI.fetchEvents();
     
-    // Get display days from config (default 7, min 5, max 14)
-    const displayDays = cfg.ui?.displayDays || 7;
+    // Get days to display from config (always days mode)
+    let displayDays = Number(cfg.ui?.displayDays) || 7;
+    displayDays = Math.max(1, Math.min(14, displayDays));
     render(items, displayDays);
     
     // Check for upcoming events and show notification if enabled
@@ -198,12 +324,37 @@ async function reportAppSize() {
   try {
     const el = document.getElementById('app');
     if (!el || !window.electronAPI || !window.electronAPI.setWindowBounds) return;
+    // Compute full desired height: include header and the full scrollHeight of the list
     const rect = el.getBoundingClientRect();
-    await window.electronAPI.setWindowBounds('main', { 
-      width: Math.ceil(rect.width), 
-      height: Math.ceil(rect.height), 
-      persist: false 
-    });
+    let desiredWidth = Math.ceil(rect.width);
+
+    const list = document.getElementById('list');
+    const status = document.getElementById('status');
+  // Use the full scrollHeight of the app container for an accurate content height
+  // This includes all children and any overflow content produced by the list.
+  desiredWidth = Math.max(desiredWidth, Math.ceil(el.scrollWidth || rect.width));
+  const desiredHeight = Math.ceil((el.scrollHeight || rect.height) + 24); // cushion for rounding and decorations
+
+    try {
+      console.log('[reportAppSize] requesting size', { width: desiredWidth, height: desiredHeight });
+      await window.electronAPI.setWindowBounds('main', {
+        width: desiredWidth,
+        height: desiredHeight,
+        persist: false
+      });
+      console.log('[reportAppSize] request completed');
+      // Verify applied size and retry with cushion if the system applied a smaller size
+      try {
+        const applied = await window.electronAPI.getContentSize('main');
+        console.log('[reportAppSize] applied content size:', applied);
+        if (applied && applied[1] < desiredHeight) {
+          const retryH = desiredHeight + 32;
+          console.log('[reportAppSize] applied smaller than desired, retrying with', retryH);
+          await window.electronAPI.setWindowBounds('main', { width: desiredWidth, height: retryH, persist: false });
+          console.log('[reportAppSize] retry completed');
+        }
+      } catch (e) { /* ignore */ }
+    } catch (e) { /* ignore */ }
   } catch (e) { /* ignore */ }
 }
 
@@ -214,7 +365,12 @@ async function applyUiFromConfig(cfg) {
     const root = document.documentElement;
     
     if (ui.fontFamily) root.style.setProperty('--app-font-family', ui.fontFamily);
-    if (ui.fontSize) root.style.setProperty('--app-font-size', `${ui.fontSize}px`);
+    if (ui.fontSize) {
+      const fs = Number(ui.fontSize) || 13;
+      root.style.setProperty('--app-font-size', `${fs}px`);
+      root.style.setProperty('--app-font-small', `${Math.max(10, fs - 2)}px`);
+      root.style.setProperty('--app-font-large', `${Math.max(12, fs + 1)}px`);
+    }
     if (ui.scheduleColor) root.style.setProperty('--schedule-color', ui.scheduleColor);
     if (ui.dateTimeColor) root.style.setProperty('--date-time-color', ui.dateTimeColor);
     if (ui.highlightColor) root.style.setProperty('--highlight-color', ui.highlightColor);
@@ -239,6 +395,7 @@ if (ctBtn) ctBtn.addEventListener('click', async () => {
     if (window.electronAPI && window.electronAPI.setConfig) {
       await window.electronAPI.setConfig({ clickThrough: !!clickThroughEnabled });
     }
+    // button-click toggles click-through; hotkey tip is shown only for keyboard invocations
   } catch (e) { console.error('toggle click-through failed', e); }
 });
 
@@ -251,6 +408,7 @@ window.addEventListener('keydown', async (ev) => {
       if (ctBtn) ctBtn.textContent = 'Click-through: ' + (clickThroughEnabled ? 'On' : 'Off');
       if (window.electronAPI && window.electronAPI.setClickThrough) await window.electronAPI.setClickThrough('main', clickThroughEnabled);
       if (window.electronAPI && window.electronAPI.setConfig) await window.electronAPI.setConfig({ clickThrough: !!clickThroughEnabled });
+      try { if (typeof showLeftTip === 'function') showLeftTip('Ctrl+Shift+C to toggle click-through', 2000); } catch (e) {}
     }
   } catch (e) { /* ignore */ }
 });
@@ -338,7 +496,8 @@ window.addEventListener('DOMContentLoaded', async () => {
         applyUiFromConfig(cfg);
         // Sync click-through state if changed externally (tray/global shortcut)
         if (cfg && cfg.ui && typeof cfg.ui.clickThrough === 'boolean') {
-          clickThroughEnabled = !!cfg.ui.clickThrough;
+          const next = !!cfg.ui.clickThrough;
+          clickThroughEnabled = next;
           if (ctBtn) ctBtn.textContent = 'Click-through: ' + (clickThroughEnabled ? 'On' : 'Off');
         }
         if (typeof load === 'function') load();
@@ -346,27 +505,103 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // Listen for toggle-collapse sent from main via global shortcut
+  try {
+    if (window.electronAPI && window.electronAPI.onToggleCollapse) {
+      window.electronAPI.onToggleCollapse(() => {
+        try { collapsed = !collapsed; applyCollapsedState(); } catch (e) { /* ignore */ }
+      });
+    }
+  } catch (e) { /* ignore */ }
+
   load();
+  // Ensure layout stabilization: request size twice (immediately and after a short delay)
+  setTimeout(() => { try { if (typeof reportAppSize === 'function') reportAppSize(); } catch (e) {} }, 250);
 });
 
 // Drag handle behavior: while pressing on drag-handle, make window clickable to allow dragging,
 // then restore click-through state afterwards. This makes the widget otherwise click-through.
 const dragHandle = document.getElementById('drag-handle');
-if (dragHandle) {
-  dragHandle.addEventListener('pointerdown', async (ev) => {
+const dragBar = document.getElementById('drag-bar');
+if (dragBar) {
+  dragBar.addEventListener('pointerdown', async (ev) => {
     try {
+      console.log('drag-bar pointerdown', ev.type, ev.button);
       // Ensure window receives mouse events while dragging
       if (window.electronAPI && window.electronAPI.setClickThrough) await window.electronAPI.setClickThrough('main', false);
-    } catch (e) { /* ignore */ }
+    } catch (e) { console.error('drag-bar pointerdown error', e); }
   });
 
-  const restore = async () => {
+  dragBar.addEventListener('pointerup', async (ev) => {
+    try { console.log('drag-bar pointerup', ev.type); } catch (e) {}
     try {
       if (window.electronAPI && window.electronAPI.setClickThrough) await window.electronAPI.setClickThrough('main', clickThroughEnabled);
-    } catch (e) { /* ignore */ }
-  };
+    } catch (e) { console.error('drag-bar pointerup restore error', e); }
+  });
 
+  dragBar.addEventListener('pointercancel', (ev) => { try { console.log('drag-bar pointercancel'); } catch (e) {} });
+  dragBar.addEventListener('pointerleave', (ev) => { try { console.log('drag-bar pointerleave'); } catch (e) {} });
+}
+
+// Backwards compatible: still handle drag on larger handle container if present
+if (dragHandle && !dragBar) {
+  dragHandle.addEventListener('pointerdown', async (ev) => {
+    try { if (window.electronAPI && window.electronAPI.setClickThrough) await window.electronAPI.setClickThrough('main', false); } catch (e) { }
+  });
+  const restore = async () => { try { if (window.electronAPI && window.electronAPI.setClickThrough) await window.electronAPI.setClickThrough('main', clickThroughEnabled); } catch (e) { } };
   dragHandle.addEventListener('pointerup', restore);
   dragHandle.addEventListener('pointercancel', restore);
   dragHandle.addEventListener('pointerleave', restore);
+}
+
+// Collapsed banner: show message at bottom when collapsed for 2 seconds
+function showLeftTip(text, ms = 2000) {
+  try {
+    let b = document.getElementById('collapsed-banner');
+    const appEl = document.getElementById('app');
+    if (!b) {
+      b = document.createElement('div');
+      b.id = 'collapsed-banner';
+      // base styling; CSS file contains additional rules
+      b.style.position = 'absolute';
+      b.style.left = '12px';
+      b.style.transform = 'none';
+      b.style.right = 'auto';
+  b.style.bottom = 'auto';
+      b.style.maxWidth = 'calc(100% - 36px)';
+      b.style.overflow = 'hidden';
+      b.style.textOverflow = 'ellipsis';
+      b.style.whiteSpace = 'normal';
+      b.style.fontSize = '12px';
+      b.style.padding = '6px 10px';
+      b.style.borderRadius = '8px';
+      b.style.background = 'rgba(0,0,0,0.85)';
+      b.style.color = '#fff';
+      b.style.zIndex = '99999';
+      b.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
+      b.style.maxHeight = '160px';
+      b.style.overflowY = 'auto';
+      if (appEl) appEl.appendChild(b);
+    }
+
+    b.textContent = text;
+    // Position the banner under the main content area
+    try {
+      const contentEl = document.getElementById('list') || document.getElementById('drag-handle') || appEl;
+      if (contentEl && appEl) {
+  const relTop = contentEl.offsetTop + contentEl.offsetHeight + 8;
+  b.style.top = relTop + 'px';
+  b.style.bottom = 'auto';
+      }
+    } catch (e) { /* ignore layout compute errors */ }
+
+    // Make sure it's visible
+    b.style.display = 'block';
+    b.style.opacity = '1';
+    try { if (b._hideTimer) clearTimeout(b._hideTimer); } catch (e) {}
+    b._hideTimer = setTimeout(() => {
+      try { b.style.opacity = '0'; } catch (e) {}
+      try { setTimeout(()=>{ b.style.display = 'none'; }, 250); } catch (e) {}
+    }, ms);
+  } catch (e) { /* ignore */ }
 }

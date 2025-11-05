@@ -5,13 +5,16 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "predist": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Try { Stop-Process -Name electron -ErrorAction SilentlyContinue -Force } catch {}; Try { taskkill /IM app-builder.exe /F /T } catch {}; Try { taskkill /IM 'Calendar Widget.exe' /F /T } catch {}; Remove-Item -LiteralPath .\\dist -Recurse -Force -ErrorAction SilentlyContinue\"",
+    "dist": "electron-builder --win --x64",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "electron": "^39.1.0"
+    "electron": "^39.1.0",
+    "electron-builder": "^24.6.0"
   },
   "dependencies": {
     "auto-launch": "^5.0.6",
@@ -19,5 +22,30 @@
     "ical.js": "^2.2.1",
     "node-fetch": "^3.3.2",
     "node-ical": "^0.22.1"
+  }
+  ,
+  "build": {
+    "asar" : false,
+    "appId": "com.kidlatpogi.calendarwidget",
+    "productName": "Calendar Widget",
+    "directories": {
+      "buildResources": "assets",
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!node_modules/electron-builder/**/*",
+      "!config.json",
+      "assets/default-config.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    }
   }
 }

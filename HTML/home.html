@@ -104,6 +104,27 @@
           <label for="highlight-color">Highlight Color:</label>
           <input type="color" id="highlight-color" value="#a3ff33" />
         </div>
+
+        <div class="setting-group">
+          <label for="display-days">Days to show (1-14):</label>
+          <select id="display-days">
+            <!-- 1..14, default 7 -->
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+            <option value="7">7</option>
+            <option value="8">8</option>
+            <option value="9">9</option>
+            <option value="10">10</option>
+            <option value="11">11</option>
+            <option value="12">12</option>
+            <option value="13">13</option>
+            <option value="14">14</option>
+          </select>
+        </div>
       </div>
 
       <!-- Sticky Actions Footer -->
@@ -127,10 +148,15 @@
     <footer id="footer" class="view card" aria-hidden="false">
       <div id="footer-links" style="text-align:center; font-size:12px; color:#aaa;">
         <span>© 2025 Zeus Bautista</span>
-  <button id="footer-github" type="button" class="link-btn">Github</button>
-  <button id="footer-portfolio" type="button" class="link-btn">Portfolio</button>
+        <button id="footer-github" type="button" class="link-btn">Github</button>
+        <button id="footer-portfolio" type="button" class="link-btn">Portfolio</button>
       </div>
     </footer>
+
+    <div>
+      <p>Ctrl+Shift+M to <b>Hide Buttons</b></p>
+      <p>Ctrl+Shift+C to toggle <b>Click-through</b></p>
+    </div>
 
     <!-- Terms Modal -->
     <div id="terms-modal" class="modal hidden">

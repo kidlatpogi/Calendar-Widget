@@ -472,60 +472,42 @@ window.addEventListener('keydown', async (ev) => {
   } catch (e) { /* ignore */ }
 });
 
-// When click-through is enabled, the window may forward pointer events but still ignore mouse events.
-// To keep the UI usable, listen for pointer events at the document level and manually dispatch clicks
-// to interactive elements under the pointer using elementFromPoint.
-document.addEventListener('pointerdown', async (ev) => {
-  try {
-    if (!clickThroughEnabled) return;
-    // Use elementsFromPoint to find all elements at the pointer position (more robust)
-    const x = ev.clientX;
-    const y = ev.clientY;
-    const elems = document.elementsFromPoint(x, y);
-    if (!elems || elems.length === 0) return;
-
-    // Helper: check if an element is visible and accepts pointer events
-    const isInteractiveCandidate = (el) => {
-      if (!el) return false;
-      if (!(el instanceof Element)) return false;
-      const style = window.getComputedStyle(el);
-      if (style.visibility === 'hidden' || style.display === 'none' || style.pointerEvents === 'none') return false;
-      return true;
-    };
-
-    let target = null;
-    for (const el of elems) {
-      if (!isInteractiveCandidate(el)) continue;
-      const interactive = el.closest('button, a, input, select, textarea, [role="button"]');
-      if (interactive && isInteractiveCandidate(interactive)) { target = interactive; break; }
-      // fallback: clickable element itself
-      if (el.matches && el.matches('button, a, input, select, textarea, [role="button"]')) { target = el; break; }
+// When click-through is enabled, clicks pass through to windows behind.
+// However, we want UI controls (buttons, inputs, etc.) to remain clickable.
+// Solution: temporarily disable click-through when hovering over UI elements.
+(function setupClickThroughHover() {
+  const controlElements = document.querySelectorAll('button, input, select, textarea, a, [role="button"]');
+  
+  const enableClickThrough = async () => {
+    if (clickThroughEnabled && window.electronAPI && window.electronAPI.setClickThrough) {
+      try { await window.electronAPI.setClickThrough('main', true); } catch (e) { }
     }
-
-    if (!target) return;
-
-    try { ev.preventDefault(); ev.stopPropagation(); } catch (e) { /* ignore */ }
-
-    // If disabled, ignore
-    if (target.disabled) return;
-
-    const tag = (target.tagName || '').toUpperCase();
-    if (tag === 'INPUT' || tag === 'TEXTAREA') {
-      target.focus();
-      if (target.type === 'checkbox' || target.type === 'radio') {
-        target.checked = !target.checked;
-        target.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-    } else if (tag === 'SELECT') {
-      target.focus();
-      // Try to open native dropdown; calling click() may help in many environments
-      try { target.click(); } catch (e) { /* ignore */ }
-    } else {
-      // Use the element's native click() to ensure attached listeners run
-      try { target.click(); } catch (e) { try { target.dispatchEvent(new MouseEvent('click', { bubbles: true })); } catch (ee) { /* ignore */ } }
+  };
+  
+  const disableClickThrough = async () => {
+    if (clickThroughEnabled && window.electronAPI && window.electronAPI.setClickThrough) {
+      try { await window.electronAPI.setClickThrough('main', false); } catch (e) { }
     }
-  } catch (e) { /* ignore */ }
-}, { capture: true, passive: false });
+  };
+  
+  // When hovering over interactive elements, disable click-through so they're clickable
+  controlElements.forEach(el => {
+    el.addEventListener('mouseenter', disableClickThrough);
+    el.addEventListener('mouseleave', enableClickThrough);
+  });
+  
+  // Exclude the click-through button itself from this behavior (it should always work)
+  const ctBtn = document.getElementById('clickthrough-btn');
+  if (ctBtn) {
+    ctBtn.removeEventListener('mouseenter', disableClickThrough);
+    ctBtn.removeEventListener('mouseleave', enableClickThrough);
+  }
+})();
+
+// Allow right-click (context menu) to pass through
+document.addEventListener('contextmenu', (ev) => {
+  // Don't prevent context menu; let it work
+}, { capture: true, passive: true });
 
 if (listEl && window.MutationObserver) {
   const mo = new MutationObserver(() => setTimeout(reportAppSize, 80));

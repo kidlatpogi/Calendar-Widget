@@ -6,6 +6,11 @@
     "clickThrough": false,
     "autoStart": false,
     "fetchInterval": 1
+    ,"scheduleColor": "#ffffff",
+    "dateTimeColor": "#cfe9ff",
+    "highlightColor": "#a3ff33",
+    "dayColor": "#ffffff",
+    "dateColor": "#cfe9ff"
   },
   "acceptedTerms": false,
   "windowBounds": {},

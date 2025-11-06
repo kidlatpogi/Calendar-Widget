@@ -7,6 +7,8 @@
   --schedule-color: #ffffff;
   --date-time-color: #cfe9ff;
   --highlight-color: #a3ff33;
+  --day-color: #ffffff;
+  --date-color: #cfe9ff;
 }
 
 html,body{
@@ -61,22 +63,19 @@ html,body{
   pointer-events: auto;
 }
 
-/* Small explicit drag bar above the list to make drag interactions reliable */
-#drag-bar{
-  height:36px;
-  min-height:36px;
-  width:100%;
-  background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
-  border-radius:6px;
-  margin-bottom:8px;
-  -webkit-app-region: drag; /* ensure this small bar is draggable */
-  pointer-events: auto; /* receive pointer events so renderer can toggle click-through while dragging */
-  cursor: grab;
-  z-index: 9999; /* put it above the list visually */
-  display:flex; align-items:center; justify-content:center;
-  color: rgba(255,255,255,0.6); font-size: var(--app-font-small);
+/* Controls placed below the list */
+#controls-below{
+  display:flex; gap:8px; margin-top:10px; -webkit-app-region: no-drag; pointer-events: auto; justify-content: flex-start;
 }
-#drag-bar::after{ content: "Drag to move"; opacity:0.6; }
+
+/* When collapsed, hide the controls-below container too */
+#app.collapsed #controls-below, #app.collapsed #controls { display: none !important; }
+
+/* Make control buttons equal width */
+.control-btn{ flex: 1 1 0; padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.04); color:#fff; font-weight:600; }
+
+/* Drag handle is the draggable container; interactive elements inside must be no-drag */
+#drag-handle{ -webkit-app-region: drag; padding: 6px 0 4px 0; }
 
 /* Collapsed UI: hide controls but keep a small visible drag handle */
 #app.collapsed #control-actions,
@@ -207,9 +206,14 @@ html,body{
 .day-header{ 
   font-weight:700; 
   margin-bottom:4px; 
-  color: var(--schedule-color);
+  color: var(--day-color);
   font-size: var(--app-font-large);
 }
+.day-header .date { color: var(--date-color); font-weight:400; margin-left:8px; font-size: .9em }
+/* When header represents today, highlight the day-name part using the highlight color and
+   optionally give the header a subtle background using the precomputed rgba value. */
+.day-header.today { background: var(--highlight-rgba); padding: 4px 6px; border-radius: 6px; }
+.day-header.today .day-name { color: var(--highlight-color) !important; }
 .event{ margin-left:6px; padding:2px 0; cursor: default; pointer-events: auto; font-size: var(--app-font-size); }
 .time{ 
   color: var(--date-time-color); 
@@ -223,6 +227,10 @@ html,body{
 .highlight{ 
   color: var(--highlight-color) !important; 
 }
+
+/* Event states */
+.event.past { text-decoration: line-through; opacity: 0.6; }
+.event.ongoing { border-left: 4px solid var(--highlight-color); background: var(--highlight-rgba); padding-left: 6px; }
 
 /* Make scrollbars visible on Windows */
 #list::-webkit-scrollbar { width: 10px; }

@@ -480,6 +480,20 @@ class WindowManager {
             return cfg;
         });
 
+        // Allow renderer to request window movement by a delta (used for custom drag)
+        ipcMain.handle('move-window-by', (ev, dx, dy) => {
+          try {
+            const w = win || homeWin;
+            if (!w) return false;
+            const bounds = w.getBounds();
+            w.setBounds({ x: bounds.x + Math.round(dx), y: bounds.y + Math.round(dy), width: bounds.width, height: bounds.height });
+            return true;
+          } catch (e) {
+            console.error('move-window-by failed', e);
+            return false;
+          }
+        });
+
         ipcMain.handle('open-main', async () => {
             this.createMainWindow();
             // Update processor reference to the newly created main window
@@ -846,8 +860,29 @@ class WindowManager {
         }
 
         if (this.tray) {
+            // Dynamically compute collapse label based on current config
+            const collapsedNow = !!(this.cfgManager && this.cfgManager.config && this.cfgManager.config.ui && this.cfgManager.config.ui.collapsed);
+            const collapseLabel = collapsedNow ? 'Uncollapse' : 'Collapse';
+
             const ctxMenu = Menu.buildFromTemplate([
         { label: 'Show Calendar', click: () => { if (this.win) { try { this.win.showInactive(); } catch (e) { try { this.win.show(); } catch {} } } } },
+        { label: 'Open Home', click: () => { try { this.createHomeWindow(); } catch (e) { console.error('open home failed', e); } } },
+        { label: collapseLabel, click: () => {
+              try {
+                // Toggle persisted collapsed state and notify renderer(s)
+                if (this.cfgManager && this.cfgManager.config) {
+                  const cfg = this.cfgManager.config;
+                  cfg.ui = cfg.ui || {};
+                  cfg.ui.collapsed = !cfg.ui.collapsed;
+                  this.cfgManager.saveConfig(cfg);
+                  // Notify main and home windows about new config
+                  try { if (this.win && !this.win.isDestroyed()) this.win.webContents.send('config-updated', cfg); } catch (e) {}
+                  try { if (this.homeWin && !this.homeWin.isDestroyed()) this.homeWin.webContents.send('config-updated', cfg); } catch (e) {}
+                }
+                // Also send a direct toggle message to the main window so it can update collapse state immediately
+                try { if (this.win && !this.win.isDestroyed()) this.win.webContents.send('toggle-collapse'); } catch (e) {}
+              } catch (e) { console.error('tray collapse toggle failed', e); }
+            } },
         { label: 'Toggle Click-through', click: () => { try { const next = this.toggleClickThrough(); console.log('click-through toggled ->', next); } catch (e) { console.error(e); } } },
         { label: 'Refresh', click: () => { if (this.win) this.win.webContents.send('refresh-events'); } },
                 { type: 'separator' },

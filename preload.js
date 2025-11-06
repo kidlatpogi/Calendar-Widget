@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   reportHomeSize: (size) => ipcRenderer.invoke('home-resize', size),
   addIcal: (url) => ipcRenderer.invoke('add-ical', url),
   setClickThrough: (which, enabled) => ipcRenderer.invoke('set-click-through', which, enabled),
+  moveWindowBy: (dx, dy) => ipcRenderer.invoke('move-window-by', dx, dy),
   getContentSize: (windowName) => ipcRenderer.invoke('get-content-size', windowName),
   toggleVisibility: (windowName) => ipcRenderer.invoke('toggle-visibility', windowName),
   minimizeWindow: (windowName) => ipcRenderer.invoke('minimize-window', windowName),

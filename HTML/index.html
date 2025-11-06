@@ -9,21 +9,17 @@
 <body>
   <div id="app">
 
-      <div id="controls">
-        <!-- 2x2 controls grid: top-left Home, top-right Refresh, bottom-left Click-through, bottom-right Collapse -->
-        <div id="controls-grid">
-          <button id="home-btn" title="Open welcome">Home</button>
-          <button id="refresh" title="Refresh">Refresh</button>
-          <div id="drag-label"></div>
-          <div id="ct-placeholder"></div>
-        </div>
-      </div>
-
-    <div id="drag-handle" title="Drag to move">
-      <!-- Explicit drag bar: keep this small and above the interactive list so dragging is reliable -->
-      <div id="drag-bar" aria-hidden="true" title="Drag to move"></div>
+  <div id="drag-handle">
+      <!-- Drag-handle is the primary draggable area; controls are placed below the events -->
       <div id="list">Loading events...</div>
       <div id="status"></div>
+
+      <!-- Controls: placed below the last event, equal-width buttons -->
+      <div id="controls-below">
+        <button id="home-btn" title="Open welcome" class="control-btn">Home</button>
+        <button id="refresh" title="Refresh" class="control-btn">Refresh</button>
+        <div id="ct-placeholder"></div>
+      </div>
     </div>
     
   </div>

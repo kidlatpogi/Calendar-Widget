@@ -97,6 +97,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('schedule-color').value = ui.scheduleColor || '#ffffff';
         document.getElementById('datetime-color').value = ui.dateTimeColor || '#cfe9ff';
         document.getElementById('highlight-color').value = ui.highlightColor || '#a3ff33';
+  document.getElementById('day-color').value = ui.dayColor || '#ffffff';
+  document.getElementById('date-color').value = ui.dateColor || '#cfe9ff';
   // Display settings
   document.getElementById('display-days').value = ui.displayDays || 7;
       }
@@ -148,7 +150,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Terms & GitHub
         document.getElementById('view-terms')?.addEventListener('click', () => this.showTermsModal());
         document.getElementById('close-terms')?.addEventListener('click', () => this.hideTermsModal());
-  document.getElementById('github-btn')?.addEventListener('click', () => window.electronAPI.openUrl('https://github.com/your-repo'));
+  document.getElementById('github-btn')?.addEventListener('click', () => window.electronAPI.openUrl('https://github.com/kidlatpogi/Calendar-Widget'));
   // Footer external links - open in default browser via preload
   document.getElementById('footer-github')?.addEventListener('click', () => window.electronAPI.openUrl('https://github.com/kidlatpogi'));
   document.getElementById('footer-portfolio')?.addEventListener('click', () => window.electronAPI.openUrl('https://www.zeusbautista.site/'));
@@ -241,14 +243,27 @@ document.addEventListener('DOMContentLoaded', async () => {
             scheduleColor: document.getElementById('schedule-color').value,
             dateTimeColor: document.getElementById('datetime-color').value,
             highlightColor: document.getElementById('highlight-color').value
+            ,dayColor: document.getElementById('day-color').value
+            ,dateColor: document.getElementById('date-color').value
             ,displayDays: Number(document.getElementById('display-days').value) || 7
           };
     
           console.log('[saveSettings] sending settings:', settings);
           await this.settingsManager.saveSettings(settings);
           console.log('[saveSettings] settings saved successfully');
-          alert('Settings saved!');
-          this.viewManager.show('main-menu');
+          // Keep the settings view open (do not automatically navigate away).
+          // Refresh local copy of config and update UI so persisted values are reflected.
+          try {
+            await this.settingsManager.loadConfig();
+            this.loadSettingsUI();
+          } catch (e) { /* ignore reload errors */ }
+          // Show a brief status message instead of closing the settings view
+          const status = document.getElementById('status');
+          if (status) {
+            status.textContent = 'Settings saved!';
+            status.classList.add('success');
+            setTimeout(() => { try { status.textContent = ''; status.classList.remove('success'); } catch (e) {} }, 1800);
+          }
         } catch (e) {
           console.error('[saveSettings] error:', e);
           alert('Failed to save settings: ' + e.message);

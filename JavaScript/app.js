@@ -13,6 +13,7 @@ const ctBtn = document.createElement('button');
 ctBtn.id = 'clickthrough-btn';
 ctBtn.title = 'Toggle click-through (allow clicks to pass through widget)';
 ctBtn.textContent = 'Click-through: Off';
+ctBtn.className = 'control-btn';
 ctBtn.style.marginLeft = '6px';
 ctBtn.style.border = '1px solid rgba(255,255,255,0.16)';
 ctBtn.style.background = 'rgba(255,255,255,0.02)';
@@ -101,8 +102,7 @@ window.addEventListener('keydown', (ev) => {
 try {
   const dragBarEl = document.getElementById('drag-bar');
   if (dragBarEl) {
-    // Also update the drag label in the controls grid
-    try { const dragLabel = document.getElementById('drag-label'); if (dragLabel) dragLabel.textContent = 'Drag to Move'; } catch (e) {}
+  // drag handle is the main draggable area; no separate drag label needed
     // Create an 'uncollapse' button inside the drag bar so user can restore the UI
     let uncollapseBtn = document.getElementById('uncollapse-btn');
     if (!uncollapseBtn) {
@@ -240,9 +240,18 @@ function render(items, displayDays = 7) {
     const dayDiv = document.createElement('div');
     dayDiv.className = 'day';
     
-    const headerDiv = document.createElement('div');
-    headerDiv.className = `day-header ${isTodayKey ? 'highlight' : ''}`;
-    headerDiv.textContent = d.toDateString();
+  const headerDiv = document.createElement('div');
+  // Use a separate 'today' class to allow styling the header (day/date) separately
+  headerDiv.className = 'day-header' + (isTodayKey ? ' today' : '');
+  // Split into day name and date so colors can be applied separately
+  const dayName = document.createElement('span');
+  dayName.className = 'day-name';
+  dayName.textContent = d.toLocaleDateString(undefined, { weekday: 'long' });
+  const dateSpan = document.createElement('span');
+  dateSpan.className = 'date';
+  dateSpan.textContent = d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  headerDiv.appendChild(dayName);
+  headerDiv.appendChild(dateSpan);
     dayDiv.appendChild(headerDiv);
     
     const group = groups[key] || [];
@@ -273,12 +282,16 @@ function render(items, displayDays = 7) {
         
         const eventDiv = document.createElement('div');
         eventDiv.className = 'event';
-        
-        // Check if event is in the past
-        const isPast = g.start < now;
+
+        // Determine event state: past, ongoing, or future
+        const startTime = g.start;
+        const endTime = parseEventDateObj(ev.end || {}) || startTime; // if no end, treat as point event
+        const isPast = endTime < now;
+        const isOngoing = startTime <= now && now < endTime;
         if (isPast) {
-          eventDiv.style.textDecoration = 'line-through';
-          eventDiv.style.opacity = '0.6';
+          eventDiv.classList.add('past');
+        } else if (isOngoing) {
+          eventDiv.classList.add('ongoing');
         }
         
         if (timeText) {
@@ -405,9 +418,21 @@ async function applyUiFromConfig(cfg) {
       root.style.setProperty('--app-font-small', `${Math.max(10, fs - 2)}px`);
       root.style.setProperty('--app-font-large', `${Math.max(12, fs + 1)}px`);
     }
-    if (ui.scheduleColor) root.style.setProperty('--schedule-color', ui.scheduleColor);
-    if (ui.dateTimeColor) root.style.setProperty('--date-time-color', ui.dateTimeColor);
-    if (ui.highlightColor) root.style.setProperty('--highlight-color', ui.highlightColor);
+  if (ui.scheduleColor) root.style.setProperty('--schedule-color', ui.scheduleColor);
+  if (ui.dateTimeColor) root.style.setProperty('--date-time-color', ui.dateTimeColor);
+  if (ui.highlightColor) {
+    root.style.setProperty('--highlight-color', ui.highlightColor);
+    // compute a subtle rgba background for highlights (12% alpha)
+    try {
+      const hex = ui.highlightColor.replace('#','');
+      const r = parseInt(hex.substring(0,2),16);
+      const g = parseInt(hex.substring(2,4),16);
+      const b = parseInt(hex.substring(4,6),16);
+      root.style.setProperty('--highlight-rgba', `rgba(${r}, ${g}, ${b}, 0.12)`);
+    } catch (e) { root.style.setProperty('--highlight-rgba', 'rgba(163,255,51,0.12)'); }
+  }
+  if (ui.dayColor) root.style.setProperty('--day-color', ui.dayColor);
+  if (ui.dateColor) root.style.setProperty('--date-color', ui.dateColor);
   } catch (e) { /* ignore */ }
 }
 
@@ -508,6 +533,49 @@ if (listEl && window.MutationObserver) {
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
+  // Custom drag: allow dragging the window by clicking anywhere inside #drag-handle (including text)
+  (function setupCustomDrag() {
+    const dragContainer = document.getElementById('drag-handle');
+    if (!dragContainer || !window.electronAPI || !window.electronAPI.moveWindowBy) return;
+
+    let dragging = false;
+    let lastX = 0;
+    let lastY = 0;
+    let pointerId = null;
+
+    const onPointerDown = (ev) => {
+      // only start when primary button
+      if (ev.button !== 0) return;
+      dragging = true;
+      pointerId = ev.pointerId;
+      lastX = ev.screenX;
+      lastY = ev.screenY;
+      // capture the pointer to receive moves even when outside
+      try { ev.target.setPointerCapture(pointerId); } catch (e) {}
+    };
+
+    const onPointerMove = async (ev) => {
+      if (!dragging || ev.pointerId !== pointerId) return;
+      const dx = ev.screenX - lastX;
+      const dy = ev.screenY - lastY;
+      if (dx === 0 && dy === 0) return;
+      lastX = ev.screenX;
+      lastY = ev.screenY;
+      try { await window.electronAPI.moveWindowBy(dx, dy); } catch (e) { /* ignore */ }
+    };
+
+    const endDrag = (ev) => {
+      if (!dragging) return;
+      dragging = false;
+      pointerId = null;
+      try { ev.target.releasePointerCapture && ev.target.releasePointerCapture(ev.pointerId); } catch (e) {}
+    };
+
+    dragContainer.addEventListener('pointerdown', onPointerDown, { passive: true });
+    window.addEventListener('pointermove', onPointerMove, { passive: true });
+    window.addEventListener('pointerup', endDrag, { passive: true });
+    window.addEventListener('pointercancel', endDrag, { passive: true });
+  })();
   try {
     if (window.electronAPI && window.electronAPI.listConfig) {
       const cfg = await window.electronAPI.listConfig();

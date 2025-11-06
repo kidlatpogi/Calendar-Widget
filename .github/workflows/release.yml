@@ -18,8 +18,20 @@ jobs:
         run: npm ci
       - name: Build Windows installer
         run: npm run predist; npm run dist
-      - name: Upload installer
-        uses: actions/upload-artifact@v4
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
         with:
-          name: calendar-windows-installer
-          path: dist/Calendar\ Widget\ Setup*.*
+          tag_name: ${{ github.ref_name }}
+          release_name: ${{ github.ref_name }}
+          body: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+
+      - name: Upload installer to Release
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: dist/Calendar\ Widget\ Setup*.*
+          asset_name: Calendar\ Widget\ Setup\${{ github.ref_name }}.exe
+          asset_content_type: application/octet-stream

@@ -371,24 +371,43 @@ class WindowManager {
 
     setupAutoLaunch() {
         try {
+      console.log('[setupAutoLaunch] called, app.isPackaged =', app.isPackaged);
+      
       // Don't enable auto-launch during development (avoid registering electron.exe)
       if (!app.isPackaged) {
-        console.log('Skipping auto-launch setup in development (app not packaged)');
+        console.log('[setupAutoLaunch] Skipping in development mode (app not packaged)');
         return;
       }
+      
+            const exePath = app.getPath('exe');
+            console.log('[setupAutoLaunch] app exe path:', exePath);
+            
             const autoLauncher = new AutoLaunch({
                 name: 'Calendar Widget',
-                path: app.getPath('exe'),
+                path: exePath,
               });
 
             const cfg = this.cfgManager?.config || {};
-            if (cfg.ui?.autoStart) {
-              autoLauncher.enable();
+            const shouldAutoStart = cfg.ui?.autoStart || false;
+            console.log('[setupAutoLaunch] config.ui.autoStart =', shouldAutoStart);
+            
+            if (shouldAutoStart) {
+              console.log('[setupAutoLaunch] Enabling auto-launch...');
+              autoLauncher.enable().then(() => {
+                console.log('[setupAutoLaunch] Auto-launch enabled successfully');
+              }).catch((err) => {
+                console.error('[setupAutoLaunch] Failed to enable auto-launch:', err);
+              });
             } else {
-              autoLauncher.disable();
+              console.log('[setupAutoLaunch] Disabling auto-launch...');
+              autoLauncher.disable().then(() => {
+                console.log('[setupAutoLaunch] Auto-launch disabled successfully');
+              }).catch((err) => {
+                console.error('[setupAutoLaunch] Failed to disable auto-launch:', err);
+              });
             }
         } catch (e) {
-            console.error('autoLaunch setup failed', e);
+            console.error('[setupAutoLaunch] exception:', e);
         }
     }
 
@@ -463,6 +482,8 @@ class WindowManager {
 
         ipcMain.handle('open-main', async () => {
             this.createMainWindow();
+            // Update processor reference to the newly created main window
+            if (this.processor) this.processor.mainWindow = this.win;
             if (this.homeWin) { try { this.homeWin.close(); } catch {} this.homeWin = null; }
       // Show without focusing so it doesn't steal focus or float above other windows
       try { this.win.showInactive(); } catch (e) { try { this.win.show(); } catch {} }
@@ -697,6 +718,10 @@ class WindowManager {
             }
 
             let allEvents = [];
+            const now = new Date();
+            const futureDate = new Date(now);
+            futureDate.setDate(futureDate.getDate() + 14); // only keep events within next 14 days
+            
             for (const entry of icals) {
                 try {
                     const url = (entry.url || '').trim();
@@ -712,8 +737,19 @@ class WindowManager {
                     }
                     if (res.body && typeof res.body === 'string') {
                         const events = this._parseIcal(res.body);
-                        console.log(`  -> parsed ${events.length} events from iCal`);
-                        allEvents = allEvents.concat(events);
+                        // Filter to only keep events within the next 14 days + 1 day past (for "past events in UI")
+                        const past = new Date(now);
+                        past.setDate(past.getDate() - 1);
+                        const filtered = events.filter(ev => {
+                            const start = ev.start?.date || ev.start?.dateTime;
+                            if (!start) return true; // keep all-day events with no explicit date
+                            const startDate = new Date(start);
+                            return startDate >= past && startDate <= futureDate;
+                        });
+                        console.log(`  -> parsed ${events.length} events, filtered to ${filtered.length}`);
+                        allEvents = allEvents.concat(filtered);
+                        // Clear the res.body from memory
+                        res.body = null;
                     }
                 } catch (err) {
                     console.error(`Failed to fetch/parse ${entry.url}:`, err.message);
@@ -733,8 +769,11 @@ class WindowManager {
             const eventMatches = icsText.match(/BEGIN:VEVENT[\s\S]*?END:VEVENT/g) || [];
             for (const eventBlock of eventMatches) {
                 const event = {};
+                
                 const summaryMatch = eventBlock.match(/SUMMARY:(.+?)(?:\r?\n|$)/);
                 event.summary = summaryMatch ? summaryMatch[1].trim() : 'No title';
+                
+                // Only store necessary fields to minimize memory
                 const dtStartMatch = eventBlock.match(/DTSTART(?:;[^:]*)?:(.+?)(?:\r?\n|$)/);
                 if (dtStartMatch) {
                     const dtStr = dtStartMatch[1].trim();
@@ -744,6 +783,7 @@ class WindowManager {
                         event.start = { date: this._formatIcalDate(dtStr) };
                     }
                 }
+                
                 const dtEndMatch = eventBlock.match(/DTEND(?:;[^:]*)?:(.+?)(?:\r?\n|$)/);
                 if (dtEndMatch) {
                     const dtStr = dtEndMatch[1].trim();
@@ -753,7 +793,11 @@ class WindowManager {
                         event.end = { date: this._formatIcalDate(dtStr) };
                     }
                 }
-                if (event.summary || event.start) events.push(event);
+                
+                // Only push if we have at least summary or start date (avoid empty events)
+                if ((event.summary && event.summary !== 'No title') || event.start) {
+                    events.push(event);
+                }
             }
         } catch (e) {
             console.warn('iCal parse error:', e.message);
@@ -845,16 +889,27 @@ app.whenReady().then(() => {
     windowManager = new WindowManager(cfgManager, icalProcessor);
     
     windowManager.setupIpcHandlers();
-    windowManager.createMainWindow();
     
-    // Update processor references to windows
-    icalProcessor.mainWindow = windowManager.win;
-    icalProcessor.homeWindow = windowManager.homeWin;
+    // Check if this is the first launch
+    const isFirstLaunch = cfgManager.config.firstLaunch === true;
+    console.log('[app.whenReady] First launch:', isFirstLaunch);
     
-    if (!cfgManager.config.acceptedTerms) {
-        windowManager.createHomeWindow();
-        icalProcessor.homeWindow = windowManager.homeWin;
+    if (isFirstLaunch) {
+      // First launch: show home window for setup
+      console.log('[app.whenReady] Showing home window for first-time setup');
+      windowManager.createHomeWindow();
+      icalProcessor.homeWindow = windowManager.homeWin;
+      
+      // Mark first launch as done so next startup goes directly to calendar
+      cfgManager.updateConfig({ firstLaunch: false });
+    } else {
+      // Subsequent launches: show calendar directly
+      console.log('[app.whenReady] Showing calendar window (not first launch)');
+      windowManager.createMainWindow();
+      icalProcessor.mainWindow = windowManager.win;
     }
+    
+    // Don't create the other window yet; it will be created on-demand via IPC or button click
     
     const interval = (cfgManager.config.ui?.fetchInterval || 1) * 60 * 1000;
     icalProcessor.startPolling(interval);

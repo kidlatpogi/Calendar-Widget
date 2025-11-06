@@ -8,5 +8,6 @@
     "fetchInterval": 1
   },
   "acceptedTerms": false,
-  "windowBounds": {}
+  "windowBounds": {},
+  "firstLaunch": true
 }

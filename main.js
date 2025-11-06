@@ -63,11 +63,14 @@ let icalProcessor = null;
 // --- 1. ConfigManager (Single Responsibility for Persistence) ---
 
 // Fallback IPC handler in case IPC calls arrive before WindowManager sets up handlers
+// True click-through: allow clicks to pass through to windows behind (setIgnoreMouseEvents),
+// but restore keyboard focus so keyboard shortcuts still work.
 try {
   ipcMain.handle('set-click-through', async (event, which, enabled) => {
     try {
       const bw = which === 'home' ? (windowManager && windowManager.homeWin) : (windowManager && windowManager.win);
       if (!bw || bw.isDestroyed()) return false;
+      // Enable click-through: let clicks pass through to windows behind
       bw.setIgnoreMouseEvents(!!enabled, { forward: true });
       return true;
     } catch (e) {
@@ -421,6 +424,7 @@ class WindowManager {
         cfg.ui.clickThrough = next;
         this.cfgManager.saveConfig(cfg);
 
+        // Enable true click-through: let clicks pass through to windows behind
         if (this.win && !this.win.isDestroyed()) {
           try { this.win.setIgnoreMouseEvents(!!next, { forward: true }); } catch (e) { }
         }
@@ -495,12 +499,16 @@ class WindowManager {
         });
 
         ipcMain.handle('open-main', async () => {
-            this.createMainWindow();
-            // Update processor reference to the newly created main window
-            if (this.processor) this.processor.mainWindow = this.win;
+            // Singleton: only create main window once; if it exists, just show it
+            if (!this.win || this.win.isDestroyed()) {
+                this.createMainWindow();
+                // Update processor reference to the newly created main window
+                if (this.processor) this.processor.mainWindow = this.win;
+            }
+            // Close home window if it's open
             if (this.homeWin) { try { this.homeWin.close(); } catch {} this.homeWin = null; }
-      // Show without focusing so it doesn't steal focus or float above other windows
-      try { this.win.showInactive(); } catch (e) { try { this.win.show(); } catch {} }
+            // Show without focusing so it doesn't steal focus or float above other windows
+            try { this.win.showInactive(); } catch (e) { try { this.win.show(); } catch {} }
             return true;
         });
         

@@ -179,12 +179,9 @@ function parseEventDateObj(dtObj) {
   
   if (dtObj.dateTime) {
     let dateStr = dtObj.dateTime;
-    if (dateStr.endsWith('Z')) {
-      return new Date(dateStr);
-    } else {
-      const d = new Date(dateStr);
-      if (!isNaN(d.getTime())) return d;
-    }
+    // Parse as-is without timezone conversion
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) return d;
   }
   
   return null;
@@ -196,8 +193,9 @@ function render(items, displayDays = 7) {
     return;
   }
 
+  // Use browser's local date (same as Google Calendar does)
   const today = new Date();
-  today.setHours(0,0,0,0);
+  today.setHours(0, 0, 0, 0);
   const todayKey = formatLocalDateKey(today);
   
   // Include past events within 24 hours

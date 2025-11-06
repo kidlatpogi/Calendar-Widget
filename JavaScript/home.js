@@ -244,10 +244,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             ,displayDays: Number(document.getElementById('display-days').value) || 7
           };
     
+          console.log('[saveSettings] sending settings:', settings);
           await this.settingsManager.saveSettings(settings);
+          console.log('[saveSettings] settings saved successfully');
           alert('Settings saved!');
           this.viewManager.show('main-menu');
         } catch (e) {
+          console.error('[saveSettings] error:', e);
           alert('Failed to save settings: ' + e.message);
         }
       }

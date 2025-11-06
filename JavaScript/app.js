@@ -231,16 +231,29 @@ function render(items, displayDays = 7) {
   }
   
   const now = new Date();
-  let out = '';
+  
+  // Use DocumentFragment for batch DOM operations (reduces reflows)
+  const frag = document.createDocumentFragment();
+  
   for (const d of days) {
     const key = formatLocalDateKey(d);
     const isTodayKey = key === todayKey;
     
-    out += `<div class="day"><div class="day-header ${isTodayKey ? 'highlight' : ''}">${d.toDateString()}</div>`;
+    const dayDiv = document.createElement('div');
+    dayDiv.className = 'day';
+    
+    const headerDiv = document.createElement('div');
+    headerDiv.className = `day-header ${isTodayKey ? 'highlight' : ''}`;
+    headerDiv.textContent = d.toDateString();
+    dayDiv.appendChild(headerDiv);
+    
     const group = groups[key] || [];
     
     if (group.length === 0) {
-      out += `<div class="no-events">No events</div>`;
+      const noEvDiv = document.createElement('div');
+      noEvDiv.className = 'no-events';
+      noEvDiv.textContent = 'No events';
+      dayDiv.appendChild(noEvDiv);
     } else {
       group.sort((a,b)=> a.start - b.start);
       for (const g of group) {
@@ -260,17 +273,40 @@ function render(items, displayDays = 7) {
           }
         }
         
+        const eventDiv = document.createElement('div');
+        eventDiv.className = 'event';
+        
         // Check if event is in the past
         const isPast = g.start < now;
-        const strikethrough = isPast ? 'text-decoration: line-through; opacity: 0.6;' : '';
+        if (isPast) {
+          eventDiv.style.textDecoration = 'line-through';
+          eventDiv.style.opacity = '0.6';
+        }
         
-        out += `<div class="event" style="${strikethrough}">${timeText ? `<span class="time">${timeText}</span> • ` : ''}<span class="title">${ev.summary || 'No title'}</span></div>`;
+        if (timeText) {
+          const timeSpan = document.createElement('span');
+          timeSpan.className = 'time';
+          timeSpan.textContent = timeText;
+          eventDiv.appendChild(timeSpan);
+          eventDiv.appendChild(document.createTextNode(' • '));
+        }
+        
+        const titleSpan = document.createElement('span');
+        titleSpan.className = 'title';
+        titleSpan.textContent = ev.summary || 'No title';
+        eventDiv.appendChild(titleSpan);
+        
+        dayDiv.appendChild(eventDiv);
       }
     }
-    out += `</div>`;
+    
+    frag.appendChild(dayDiv);
   }
 
-  if (listEl) listEl.innerHTML = out;
+  if (listEl) {
+    listEl.innerHTML = '';  // Clear old content
+    listEl.appendChild(frag);  // Single DOM insertion
+  }
   setTimeout(reportAppSize, 80);
 }
 

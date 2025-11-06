@@ -5,8 +5,8 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "predist": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Try { Stop-Process -Name electron -ErrorAction SilentlyContinue -Force } catch {}; Try { taskkill /IM app-builder.exe /F /T } catch {}; Try { taskkill /IM 'Calendar Widget.exe' /F /T } catch {}; Remove-Item -LiteralPath .\\dist -Recurse -Force -ErrorAction SilentlyContinue\"",
-    "dist": "electron-builder --win --x64",
+  "predist": "node ./scripts/predist.js",
+  "dist": "electron-builder --win --x64",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

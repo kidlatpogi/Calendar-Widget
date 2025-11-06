@@ -817,7 +817,7 @@ class WindowManager {
         try {
             const cleanStr = dtStr.replace(/Z$/, '');
             if (cleanStr.length === 8) {
-                return `${cleanStr.substring(0, 4)}-${cleanStr.substring(4, 6)}-${cleanStr.substring(6, 8)}T00:00:00Z`;
+                return `${cleanStr.substring(0, 4)}-${cleanStr.substring(4, 6)}-${cleanStr.substring(6, 8)}T00:00:00`;
             }
             if (cleanStr.includes('T')) {
                 const [date, time] = cleanStr.split('T');
@@ -827,7 +827,7 @@ class WindowManager {
                 const hh = time.substring(0, 2) || '00';
                 const mm = time.substring(2, 4) || '00';
                 const ss = time.substring(4, 6) || '00';
-                return `${y}-${m}-${d}T${hh}:${mm}:${ss}Z`;
+                return `${y}-${m}-${d}T${hh}:${mm}:${ss}`;
             }
         } catch (e) { /* ignore */ }
         return dtStr;

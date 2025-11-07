@@ -403,51 +403,41 @@ function render(items, displayDays = 7, config = null) {
 // Setup mark as done functionality for an event
 function setupEventMarkDone(eventDiv, eventId) {
   window.electronAPI.getConfig().then(config => {
-    console.log('[DEBUG] setupEventMarkDone called for event:', eventId);
-    console.log('[DEBUG] Config:', config);
-    console.log('[DEBUG] enableMarkDone:', config.ui?.enableMarkDone);
-    console.log('[DEBUG] markDoneMethod:', config.ui?.markDoneMethod);
-    
     if (!config.ui || !config.ui.enableMarkDone) {
-      console.log('[DEBUG] Mark as done is disabled, skipping setup');
       return;
     }
     
     const method = config.ui.markDoneMethod || 'right-click';
-    console.log('[DEBUG] Using method:', method);
     
-    // Right-click context menu
+    // Right-click context menu (store handler reference for cleanup)
     if (method === 'right-click') {
-      console.log('[DEBUG] Setting up right-click handler');
-      eventDiv.addEventListener('contextmenu', (e) => {
-        console.log('[DEBUG] Right-click detected on event:', eventId);
+      const handler = (e) => {
         e.preventDefault();
         showEventContextMenu(eventDiv, eventId, e.clientX, e.clientY);
-      });
+      };
+      eventDiv.addEventListener('contextmenu', handler, { once: false });
+      eventDiv.dataset.contextMenuHandler = 'true'; // Mark for potential cleanup
     }
     
-    // Double-click toggle
+    // Double-click toggle (store handler reference for cleanup)
     if (method === 'double-click') {
-      console.log('[DEBUG] Setting up double-click handler');
-      eventDiv.addEventListener('dblclick', (e) => {
-        console.log('[DEBUG] Double-click detected on event:', eventId);
+      const handler = (e) => {
         e.preventDefault();
         toggleEventDone(eventDiv, eventId);
-      });
+      };
+      eventDiv.addEventListener('dblclick', handler, { once: false });
+      eventDiv.dataset.dblClickHandler = 'true'; // Mark for potential cleanup
     }
   }).catch(err => {
-    console.error('[DEBUG] Failed to get config in setupEventMarkDone:', err);
+    // Silently ignore config errors to avoid memory spam from failed promises
   });
 }
 
 // Show context menu for event
 function showEventContextMenu(eventDiv, eventId, x, y) {
-  console.log('[DEBUG] showEventContextMenu called for event:', eventId, 'at position:', x, y);
-  
   // Remove existing context menu if any
   const existing = document.getElementById('event-context-menu');
   if (existing) {
-    console.log('[DEBUG] Removing existing context menu');
     existing.remove();
   }
   
@@ -468,7 +458,6 @@ function showEventContextMenu(eventDiv, eventId, x, y) {
   `;
   
   const isCompleted = eventDiv.classList.contains('completed');
-  console.log('[DEBUG] Event completed status:', isCompleted);
   
   const button = document.createElement('button');
   button.style.cssText = `
@@ -487,60 +476,44 @@ function showEventContextMenu(eventDiv, eventId, x, y) {
   button.onmouseover = () => button.style.background = 'rgba(255,255,255,0.1)';
   button.onmouseout = () => button.style.background = 'transparent';
   button.onclick = () => {
-    console.log('[DEBUG] Context menu button clicked for event:', eventId);
     toggleEventDone(eventDiv, eventId);
     menu.remove();
   };
   
   menu.appendChild(button);
   document.body.appendChild(menu);
-  console.log('[DEBUG] Context menu added to DOM');
   
   // Close menu when clicking elsewhere
   setTimeout(() => {
     document.addEventListener('click', function closeMenu() {
-      console.log('[DEBUG] Closing context menu');
-      menu.remove();
+      try { menu.remove(); } catch (e) {}
       document.removeEventListener('click', closeMenu);
-    });
+    }, { once: true });
   }, 100);
 }
 
 // Toggle event done status
 function toggleEventDone(eventDiv, eventId) {
-  console.log('[DEBUG] toggleEventDone called for event:', eventId);
-  console.log('[DEBUG] Current classList before toggle:', Array.from(eventDiv.classList));
-  
   eventDiv.classList.toggle('completed');
-  console.log('[DEBUG] classList after toggle:', Array.from(eventDiv.classList));
   
   // Save to config
   window.electronAPI.getConfig().then(config => {
-    console.log('[DEBUG] Got config in toggleEventDone:', config);
-    
     if (!config.completedEvents) config.completedEvents = {};
     
     if (eventDiv.classList.contains('completed')) {
-      console.log('[DEBUG] Marking event as completed');
       config.completedEvents[eventId] = true;
       // Hide completed event if showCompletedEvents is disabled
       if (!config.ui || config.ui.showCompletedEvents === false) {
-        console.log('[DEBUG] Hiding completed event (showCompletedEvents is false)');
         eventDiv.classList.add('hidden');
       }
     } else {
-      console.log('[DEBUG] Marking event as pending (removing from completedEvents)');
       delete config.completedEvents[eventId];
       // Show event again if it was hidden
       eventDiv.classList.remove('hidden');
     }
     
-    console.log('[DEBUG] Saving config with completedEvents:', config.completedEvents);
     // Save the updated config to persist changes
-    window.electronAPI.saveConfig(config).then(() => {
-      console.log('[DEBUG] Config saved successfully');
-    }).catch(err => {
-      console.error('[DEBUG] Failed to save config:', err);
+    window.electronAPI.saveConfig(config).catch(err => {
       // Revert the visual change if save failed
       eventDiv.classList.toggle('completed');
       if (!eventDiv.classList.contains('completed')) {
@@ -548,7 +521,6 @@ function toggleEventDone(eventDiv, eventId) {
       }
     });
   }).catch(err => {
-    console.error('[DEBUG] Failed to get config:', err);
     // Revert the visual change if get failed
     eventDiv.classList.toggle('completed');
   });

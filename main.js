@@ -741,8 +741,12 @@ class WindowManager {
 
             let allEvents = [];
             const now = new Date();
+            // Respect user-configured displayDays when filtering fetched events so the
+            // renderer receives events for all days the user asked to see. Default to 14.
+            const configuredDays = Number(this.cfgManager.config?.ui?.displayDays) || 14;
+            const daysAhead = Math.max(1, Math.min(30, configuredDays)); // clamp to reasonable range
             const futureDate = new Date(now);
-            futureDate.setDate(futureDate.getDate() + 14); // only keep events within next 14 days
+            futureDate.setDate(futureDate.getDate() + daysAhead);
             
             for (const entry of icals) {
                 try {
@@ -759,7 +763,7 @@ class WindowManager {
                     }
                     if (res.body && typeof res.body === 'string') {
                         const events = this._parseIcal(res.body);
-                        // Filter to only keep events within the next 14 days + 1 day past (for "past events in UI")
+                        // Filter to only keep events within the next `daysAhead` days + 1 day past
                         const past = new Date(now);
                         past.setDate(past.getDate() - 1);
                         const filtered = events.filter(ev => {

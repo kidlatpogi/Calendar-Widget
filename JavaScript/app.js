@@ -219,6 +219,8 @@ function render(items, displayDays = 7) {
     groups[key].push({ ev, start });
   }
 
+
+
   // Build display: show displayDays days starting from today (even if empty)
   const displayDays_clamped = Math.max(1, Math.min(14, displayDays || 7));
   const days = [];
@@ -339,8 +341,8 @@ async function load() {
     const items = await window.electronAPI.fetchEvents();
     
     // Get days to display from config (always days mode)
-    let displayDays = Number(cfg.ui?.displayDays) || 7;
-    displayDays = Math.max(1, Math.min(14, displayDays));
+    let displayDays = Number(cfg.ui?.displayDays) || 14;  // Match main.js default of 14, not 7
+    displayDays = Math.max(1, Math.min(30, displayDays));  // Also match main.js clamp to 30, not 14
     render(items, displayDays);
     
     // Check for upcoming events and show notification if enabled

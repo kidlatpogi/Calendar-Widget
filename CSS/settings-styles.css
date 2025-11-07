@@ -6,9 +6,25 @@
 html, body { height: 100%; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial; }
 body { display:flex; align-items:center; justify-content:center; background:#111; color:#eee; }
 
-#wrap { width: min(420px, 96vw); margin: 12px; padding: 12px; background: rgba(255,255,255,0.03); border-radius:8px; }
+#wrap { 
+  width: 100%; 
+  max-width: 1200px;
+  margin: 12px auto; 
+  padding: 16px; 
+  background: rgba(255,255,255,0.03); 
+  border-radius:8px; 
+  box-sizing: border-box;
+  overflow-y: auto;
+  max-height: calc(100vh - 24px);
+}
 .view { margin-bottom:12px; }
-.card { padding:10px; border-radius:6px; background: rgba(0,0,0,0.2); }
+.card { 
+  padding:16px; 
+  border-radius:6px; 
+  background: rgba(0,0,0,0.2); 
+  overflow-y: auto;
+  max-height: calc(100vh - 60px);
+}
 
 /* Utility hidden */
 .hidden { display:none !important; visibility:hidden !important; }
@@ -178,6 +194,66 @@ input[type="color"] {
   min-width: 80px;
   margin-top: 0;
   margin-bottom: 0;
+}
+
+/* Settings grid layout */
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: var(--spacing-l);
+  margin-bottom: var(--spacing-l);
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  min-width: 0; /* Prevent grid blowout */
+}
+
+.settings-section h4 {
+  margin-bottom: var(--spacing-m);
+  padding-bottom: var(--spacing-s);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 16px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1100px) {
+  .settings-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-m);
+  }
+}
+
+@media (max-width: 700px) {
+  .settings-grid {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-s);
+  }
+  
+  .settings-section h4 {
+    font-size: 14px;
+  }
+  
+  .setting-group {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  
+  .setting-group > input[type="number"],
+  .setting-group > select,
+  .setting-group > input[type="color"] {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  #wrap {
+    width: 100vw;
+    margin: 0;
+    padding: 8px;
+  }
 }
 
 /* --- Settings View Specifics --- */

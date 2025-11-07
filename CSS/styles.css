@@ -9,6 +9,7 @@
   --highlight-color: #a3ff33;
   --day-color: #ffffff;
   --date-color: #cfe9ff;
+  --date-spacing: 16px;
 }
 
 html,body{
@@ -203,7 +204,7 @@ html,body{
 }
 
 /* day/event styles */
-.day{ margin-bottom:4px; }
+.day{ margin-bottom: var(--date-spacing); }
 .day-header{ 
   font-weight:700; 
   margin-bottom:4px; 

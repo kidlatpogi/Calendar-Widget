@@ -101,6 +101,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('date-color').value = ui.dateColor || '#cfe9ff';
   // Display settings
   document.getElementById('display-days').value = ui.displayDays || 7;
+  document.getElementById('date-spacing').value = ui.dateSpacing || 16;
       }
     
       setupEventListeners() {
@@ -246,6 +247,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ,dayColor: document.getElementById('day-color').value
             ,dateColor: document.getElementById('date-color').value
             ,displayDays: Number(document.getElementById('display-days').value) || 7
+            ,dateSpacing: Number(document.getElementById('date-spacing').value) || 16
           };
     
           console.log('[saveSettings] sending settings:', settings);

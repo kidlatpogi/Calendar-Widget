@@ -40,100 +40,117 @@
 
     <!-- Settings View -->
     <div id="settings" class="view card hidden">
-      <div>
-        <h2>Settings</h2>
+      <h2>Settings</h2>
 
+      <div class="settings-grid">
         <!-- System Settings -->
-        <h4>System</h4>
-        <div class="setting-group">
-          <label>
-            <input type="checkbox" id="auto-start" />
-            Run on startup
-          </label>
+        <div class="settings-section">
+          <h4>System</h4>
+          <div class="setting-group">
+            <label>
+              <input type="checkbox" id="auto-start" />
+              Run on startup
+            </label>
+          </div>
+
+          <div class="setting-group">
+            <label for="fetch-interval">Fetch Interval (minutes):</label>
+            <select id="fetch-interval">
+              <!-- allow 1 through 14 minutes -->
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
+              <option value="7">7</option>
+              <option value="8">8</option>
+              <option value="9">9</option>
+              <option value="10">10</option>
+              <option value="11">11</option>
+              <option value="12">12</option>
+              <option value="13">13</option>
+              <option value="14">14</option>
+            </select>
+          </div>
         </div>
 
-        <div class="setting-group">
-          <label for="fetch-interval">Fetch Interval (minutes):</label>
-          <select id="fetch-interval">
-            <!-- allow 1 through 14 minutes -->
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4">4</option>
-            <option value="5">5</option>
-            <option value="6">6</option>
-            <option value="7">7</option>
-            <option value="8">8</option>
-            <option value="9">9</option>
-            <option value="10">10</option>
-            <option value="11">11</option>
-            <option value="12">12</option>
-            <option value="13">13</option>
-            <option value="14">14</option>
-          </select>
+        <!-- Layout -->
+        <div class="settings-section">
+          <h4>Layout</h4>
+          <div class="setting-group">
+            <label for="display-days">Days to show (1-14):</label>
+            <select id="display-days">
+              <!-- 1..14, default 7 -->
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
+              <option value="7">7</option>
+              <option value="8">8</option>
+              <option value="9">9</option>
+              <option value="10">10</option>
+              <option value="11">11</option>
+              <option value="12">12</option>
+              <option value="13">13</option>
+              <option value="14">14</option>
+            </select>
+          </div>
+
+          <div class="setting-group">
+            <label for="date-spacing">Date Spacing (px):</label>
+            <input type="number" id="date-spacing" min="4" max="32" value="16" />
+          </div>
         </div>
 
-        <!-- Appearance -->
-        <h4>Appearance</h4>
-        <div class="setting-group">
-          <label for="font-family">Font Family:</label>
-          <select id="font-family">
-            <option value="Segoe UI">Segoe UI</option>
-            <option value="Arial">Arial</option>
-            <option value="Helvetica">Helvetica</option>
-            <option value="Courier New">Courier New</option>
-          </select>
+        <!-- Typography -->
+        <div class="settings-section">
+          <h4>Typography</h4>
+          <div class="setting-group">
+            <label for="font-family">Font Family:</label>
+            <select id="font-family">
+              <option value="Segoe UI">Segoe UI</option>
+              <option value="Arial">Arial</option>
+              <option value="Helvetica">Helvetica</option>
+              <option value="Courier New">Courier New</option>
+            </select>
+          </div>
+
+          <div class="setting-group">
+            <label for="font-size">Font Size:</label>
+            <input type="number" id="font-size" min="10" max="20" value="13" />
+          </div>
         </div>
 
-        <div class="setting-group">
-          <label for="font-size">Font Size:</label>
-          <input type="number" id="font-size" min="10" max="20" value="13" />
-        </div>
+        <!-- Colors -->
+        <div class="settings-section">
+          <h4>Colors</h4>
+          <div class="setting-group">
+            <label for="schedule-color">Event Title Color:</label>
+            <input type="color" id="schedule-color" value="#ffffff" />
+          </div>
 
-        <div class="setting-group">
-          <label for="schedule-color">Event Title Color:</label>
-          <input type="color" id="schedule-color" value="#ffffff" />
-        </div>
+          <div class="setting-group">
+            <label for="datetime-color">Time Color:</label>
+            <input type="color" id="datetime-color" value="#cfe9ff" />
+          </div>
 
-        <div class="setting-group">
-          <label for="datetime-color">Time Color:</label>
-          <input type="color" id="datetime-color" value="#cfe9ff" />
-        </div>
+          <div class="setting-group">
+            <label for="highlight-color">Highlight Color:</label>
+            <input type="color" id="highlight-color" value="#a3ff33" />
+          </div>
 
-        <div class="setting-group">
-          <label for="highlight-color">Highlight Color:</label>
-          <input type="color" id="highlight-color" value="#a3ff33" />
-        </div>
+          <div class="setting-group">
+            <label for="day-color">Day Header Color:</label>
+            <input type="color" id="day-color" value="#ffffff" />
+          </div>
 
-        <div class="setting-group">
-          <label for="day-color">Day Header Color:</label>
-          <input type="color" id="day-color" value="#ffffff" />
-        </div>
-
-        <div class="setting-group">
-          <label for="date-color">Date Text Color:</label>
-          <input type="color" id="date-color" value="#cfe9ff" />
-        </div>
-
-        <div class="setting-group">
-          <label for="display-days">Days to show (1-14):</label>
-          <select id="display-days">
-            <!-- 1..14, default 7 -->
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4">4</option>
-            <option value="5">5</option>
-            <option value="6">6</option>
-            <option value="7">7</option>
-            <option value="8">8</option>
-            <option value="9">9</option>
-            <option value="10">10</option>
-            <option value="11">11</option>
-            <option value="12">12</option>
-            <option value="13">13</option>
-            <option value="14">14</option>
-          </select>
+          <div class="setting-group">
+            <label for="date-color">Date Text Color:</label>
+            <input type="color" id="date-color" value="#cfe9ff" />
+          </div>
         </div>
       </div>
 

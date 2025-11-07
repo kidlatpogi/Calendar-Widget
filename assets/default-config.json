@@ -21,7 +21,8 @@
     "clock12Hour": false,
     "enableMarkDone": true,
     "markDoneMethod": "right-click",
-    "showCompletedEvents": true
+    "showCompletedEvents": true,
+    "showEmptyDays": true
   },
   "completedEvents": {},
   "acceptedTerms": false,

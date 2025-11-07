@@ -7,6 +7,53 @@ const homeBtn = document.getElementById('home-btn');
 // Prefer explicit placeholders in the controls grid if present
 const controlsEl = (document.getElementById('ct-placeholder') || document.getElementById('control-actions-bottom') || document.getElementById('control-actions'));
 
+// Object pool for DOM elements to reduce GC pressure during renders
+const domElementPool = {
+  divs: [],
+  spans: [],
+  textNodes: [],
+  
+  getDiv() {
+    if (this.divs.length > 0) {
+      const div = this.divs.pop();
+      div.className = '';
+      div.innerHTML = '';
+      div.style.cssText = '';
+      return div;
+    }
+    return document.createElement('div');
+  },
+  
+  putDiv(div) {
+    if (this.divs.length < 200) { // Pool max 200 divs
+      this.divs.push(div);
+    }
+  },
+  
+  getSpan() {
+    if (this.spans.length > 0) {
+      const span = this.spans.pop();
+      span.className = '';
+      span.textContent = '';
+      span.style.cssText = '';
+      return span;
+    }
+    return document.createElement('span');
+  },
+  
+  putSpan(span) {
+    if (this.spans.length < 200) { // Pool max 200 spans
+      this.spans.push(span);
+    }
+  },
+  
+  clearPool() {
+    this.divs = [];
+    this.spans = [];
+    this.textNodes = [];
+  }
+};
+
 // click-through toggle button (injected)
 let clickThroughEnabled = false;
 const ctBtn = document.createElement('button');
@@ -277,15 +324,28 @@ function render(items, displayDays = 7, config = null) {
 
   // Build display: show displayDays days starting from TODAY
   const displayDays_clamped = displayDays;
+  const showEmptyDays = config?.ui?.showEmptyDays !== false; // Default to true
   const days = [];
+  
+  // Optimization: only render days with events (unless showEmptyDays is enabled)
+  const daysWithEvents = new Set(Object.keys(groups));
+  daysWithEvents.add(todayKey); // Always show today
+  
   for (let i = 0; i < displayDays_clamped; i++) {
     const d = new Date(today);
     d.setDate(today.getDate() + i);
-    days.push(d);
+    const key = formatLocalDateKey(d);
+    // Add day if: (1) showEmptyDays is ON, OR (2) it has events, OR (3) it's today
+    if (showEmptyDays || daysWithEvents.has(key)) {
+      days.push(d);
+    }
   }
   
   const now = new Date();
   const use12Hour = config?.ui?.clock12Hour === true;
+  
+  // Clear old pool before rendering (allows GC of old elements)
+  domElementPool.clearPool();
   
   // Use DocumentFragment for batch DOM operations (reduces reflows)
   const frag = document.createDocumentFragment();
@@ -294,26 +354,26 @@ function render(items, displayDays = 7, config = null) {
     const key = formatLocalDateKey(d);
     const isTodayKey = key === todayKey;
     
-    const dayDiv = document.createElement('div');
+    const dayDiv = domElementPool.getDiv();
     dayDiv.className = 'day';
     
     // Add clock for today if enabled - BEFORE the header
     if (isTodayKey) {
-      const clockDiv = document.createElement('div');
+      const clockDiv = domElementPool.getDiv();
       clockDiv.className = 'clock';
       clockDiv.dataset.clockElement = 'today';
       dayDiv.appendChild(clockDiv);
       updateClock(clockDiv);
     }
     
-  const headerDiv = document.createElement('div');
+  const headerDiv = domElementPool.getDiv();
   // Use a separate 'today' class to allow styling the header (day/date) separately
   headerDiv.className = 'day-header' + (isTodayKey ? ' today' : '');
   // Split into day name and date so colors can be applied separately
-  const dayName = document.createElement('span');
+  const dayName = domElementPool.getSpan();
   dayName.className = 'day-name';
   dayName.textContent = d.toLocaleDateString(undefined, { weekday: 'long' });
-  const dateSpan = document.createElement('span');
+  const dateSpan = domElementPool.getSpan();
   dateSpan.className = 'date';
   dateSpan.textContent = d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   headerDiv.appendChild(dayName);
@@ -323,7 +383,8 @@ function render(items, displayDays = 7, config = null) {
     const group = groups[key] || [];
     
     if (group.length === 0) {
-      const noEvDiv = document.createElement('div');
+      // Show "No events" message for empty days
+      const noEvDiv = domElementPool.getDiv();
       noEvDiv.className = 'no-events';
       noEvDiv.textContent = 'No events';
       dayDiv.appendChild(noEvDiv);
@@ -346,7 +407,7 @@ function render(items, displayDays = 7, config = null) {
           }
         }
         
-        const eventDiv = document.createElement('div');
+        const eventDiv = domElementPool.getDiv();
         eventDiv.className = 'event';
 
         // Determine event state: past, ongoing, or future
@@ -366,14 +427,14 @@ function render(items, displayDays = 7, config = null) {
         }
         
         if (timeText) {
-          const timeSpan = document.createElement('span');
+          const timeSpan = domElementPool.getSpan();
           timeSpan.className = 'time';
           timeSpan.textContent = timeText;
           eventDiv.appendChild(timeSpan);
           eventDiv.appendChild(document.createTextNode(' • '));
         }
         
-        const titleSpan = document.createElement('span');
+        const titleSpan = domElementPool.getSpan();
         titleSpan.className = 'title';
         titleSpan.textContent = ev.summary || 'No title';
         eventDiv.appendChild(titleSpan);
@@ -381,9 +442,6 @@ function render(items, displayDays = 7, config = null) {
         // Create a unique ID for this event
         const eventId = `${formatLocalDateKey(d)}-${ev.summary}-${timeText}`;
         eventDiv.dataset.eventId = eventId;
-        
-        // Add mark as done functionality
-        setupEventMarkDone(eventDiv, eventId);
         
         dayDiv.appendChild(eventDiv);
       }
@@ -396,58 +454,73 @@ function render(items, displayDays = 7, config = null) {
     listEl.innerHTML = '';  // Clear old content
     listEl.appendChild(frag);  // Single DOM insertion
     applyCompletedEventStyles();  // Apply done styles after rendering
+    setupEventMarkDoneDelegate();  // Setup event delegation for mark-done
   }
   setTimeout(reportAppSize, 80);
 }
 
-// Setup mark as done functionality for an event
-function setupEventMarkDone(eventDiv, eventId) {
+// Setup mark as done functionality using event delegation (memory efficient)
+function setupEventMarkDoneDelegate() {
+  if (!listEl) return;
+  
   window.electronAPI.getConfig().then(config => {
-    console.log('[DEBUG] setupEventMarkDone called for event:', eventId);
-    console.log('[DEBUG] Config:', config);
-    console.log('[DEBUG] enableMarkDone:', config.ui?.enableMarkDone);
-    console.log('[DEBUG] markDoneMethod:', config.ui?.markDoneMethod);
-    
     if (!config.ui || !config.ui.enableMarkDone) {
-      console.log('[DEBUG] Mark as done is disabled, skipping setup');
       return;
     }
     
     const method = config.ui.markDoneMethod || 'right-click';
-    console.log('[DEBUG] Using method:', method);
     
-    // Right-click context menu
+    // Remove old delegation listeners first
+    listEl.removeEventListener('contextmenu', handleEventContextMenu);
+    listEl.removeEventListener('dblclick', handleEventDblClick);
+    
+    // Right-click context menu using delegation
     if (method === 'right-click') {
-      console.log('[DEBUG] Setting up right-click handler');
-      eventDiv.addEventListener('contextmenu', (e) => {
-        console.log('[DEBUG] Right-click detected on event:', eventId);
-        e.preventDefault();
-        showEventContextMenu(eventDiv, eventId, e.clientX, e.clientY);
-      });
+      listEl.addEventListener('contextmenu', handleEventContextMenu);
     }
     
-    // Double-click toggle
+    // Double-click toggle using delegation
     if (method === 'double-click') {
-      console.log('[DEBUG] Setting up double-click handler');
-      eventDiv.addEventListener('dblclick', (e) => {
-        console.log('[DEBUG] Double-click detected on event:', eventId);
-        e.preventDefault();
-        toggleEventDone(eventDiv, eventId);
-      });
+      listEl.addEventListener('dblclick', handleEventDblClick);
     }
   }).catch(err => {
-    console.error('[DEBUG] Failed to get config in setupEventMarkDone:', err);
+    // Silently ignore config errors
   });
+}
+
+function handleEventContextMenu(e) {
+  const eventDiv = e.target.closest('.event');
+  if (!eventDiv) return;
+  
+  e.preventDefault();
+  const eventId = eventDiv.dataset.eventId;
+  if (eventId) {
+    showEventContextMenu(eventDiv, eventId, e.clientX, e.clientY);
+  }
+}
+
+function handleEventDblClick(e) {
+  const eventDiv = e.target.closest('.event');
+  if (!eventDiv) return;
+  
+  e.preventDefault();
+  const eventId = eventDiv.dataset.eventId;
+  if (eventId) {
+    toggleEventDone(eventDiv, eventId);
+  }
+}
+
+// Setup mark as done functionality for an event (legacy - kept for compatibility)
+function setupEventMarkDone(eventDiv, eventId) {
+  // No longer needed with delegation, but kept for compatibility
+  return;
 }
 
 // Show context menu for event
 function showEventContextMenu(eventDiv, eventId, x, y) {
-  console.log('[DEBUG] showEventContextMenu called for event:', eventId, 'at position:', x, y);
-  
   // Remove existing context menu if any
   const existing = document.getElementById('event-context-menu');
   if (existing) {
-    console.log('[DEBUG] Removing existing context menu');
     existing.remove();
   }
   
@@ -468,7 +541,6 @@ function showEventContextMenu(eventDiv, eventId, x, y) {
   `;
   
   const isCompleted = eventDiv.classList.contains('completed');
-  console.log('[DEBUG] Event completed status:', isCompleted);
   
   const button = document.createElement('button');
   button.style.cssText = `
@@ -487,60 +559,44 @@ function showEventContextMenu(eventDiv, eventId, x, y) {
   button.onmouseover = () => button.style.background = 'rgba(255,255,255,0.1)';
   button.onmouseout = () => button.style.background = 'transparent';
   button.onclick = () => {
-    console.log('[DEBUG] Context menu button clicked for event:', eventId);
     toggleEventDone(eventDiv, eventId);
     menu.remove();
   };
   
   menu.appendChild(button);
   document.body.appendChild(menu);
-  console.log('[DEBUG] Context menu added to DOM');
   
   // Close menu when clicking elsewhere
   setTimeout(() => {
     document.addEventListener('click', function closeMenu() {
-      console.log('[DEBUG] Closing context menu');
-      menu.remove();
+      try { menu.remove(); } catch (e) {}
       document.removeEventListener('click', closeMenu);
-    });
+    }, { once: true });
   }, 100);
 }
 
 // Toggle event done status
 function toggleEventDone(eventDiv, eventId) {
-  console.log('[DEBUG] toggleEventDone called for event:', eventId);
-  console.log('[DEBUG] Current classList before toggle:', Array.from(eventDiv.classList));
-  
   eventDiv.classList.toggle('completed');
-  console.log('[DEBUG] classList after toggle:', Array.from(eventDiv.classList));
   
   // Save to config
   window.electronAPI.getConfig().then(config => {
-    console.log('[DEBUG] Got config in toggleEventDone:', config);
-    
     if (!config.completedEvents) config.completedEvents = {};
     
     if (eventDiv.classList.contains('completed')) {
-      console.log('[DEBUG] Marking event as completed');
       config.completedEvents[eventId] = true;
       // Hide completed event if showCompletedEvents is disabled
       if (!config.ui || config.ui.showCompletedEvents === false) {
-        console.log('[DEBUG] Hiding completed event (showCompletedEvents is false)');
         eventDiv.classList.add('hidden');
       }
     } else {
-      console.log('[DEBUG] Marking event as pending (removing from completedEvents)');
       delete config.completedEvents[eventId];
       // Show event again if it was hidden
       eventDiv.classList.remove('hidden');
     }
     
-    console.log('[DEBUG] Saving config with completedEvents:', config.completedEvents);
     // Save the updated config to persist changes
-    window.electronAPI.saveConfig(config).then(() => {
-      console.log('[DEBUG] Config saved successfully');
-    }).catch(err => {
-      console.error('[DEBUG] Failed to save config:', err);
+    window.electronAPI.saveConfig(config).catch(err => {
       // Revert the visual change if save failed
       eventDiv.classList.toggle('completed');
       if (!eventDiv.classList.contains('completed')) {
@@ -548,7 +604,6 @@ function toggleEventDone(eventDiv, eventId) {
       }
     });
   }).catch(err => {
-    console.error('[DEBUG] Failed to get config:', err);
     // Revert the visual change if get failed
     eventDiv.classList.toggle('completed');
   });
@@ -885,6 +940,15 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (window.electronAPI && window.electronAPI.onToggleCollapse) {
       window.electronAPI.onToggleCollapse(() => {
         try { collapsed = !collapsed; applyCollapsedState(); } catch (e) { /* ignore */ }
+      });
+    }
+  } catch (e) { /* ignore */ }
+
+  // Listen for refresh event sent from tray menu (FIX for refresh button)
+  try {
+    if (window.electronAPI && window.electronAPI.onRefresh) {
+      window.electronAPI.onRefresh(() => {
+        try { if (typeof load === 'function') load(); } catch (e) { /* ignore */ }
       });
     }
   } catch (e) { /* ignore */ }

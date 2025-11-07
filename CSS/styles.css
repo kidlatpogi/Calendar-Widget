@@ -1,7 +1,23 @@
-/* Import Pixelify Sans from Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&display=swap');
-
 /* Transparent background - BrowserWindow in Electron must set transparent:true */
+
+/* Home Video Font - pixel/retro font by Thomas Jollans */
+@font-face {
+  font-family: 'Home Video';
+  src: url('../assets/Fonts/HomeVideo-BLG6G.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* LED Dot-Matrix Font - retro digital display font */
+@font-face {
+  font-family: 'LED Dot-Matrix';
+  src: url('../assets/Fonts/LED Dot-Matrix 400.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --app-font-family: "Segoe UI", SegoeUI, Arial, sans-serif;
   --app-font-size: 13px;
@@ -27,8 +43,10 @@ html,body{
   height:100%;
   margin:0;
   background:transparent;
-  font-family: var(--app-font-family);
+  font-family: "Segoe UI", var(--app-font-family);
   font-size: var(--app-font-size);
+  font-weight: 400;
+  font-style: normal;
   overflow:hidden;
   pointer-events: none;
 }

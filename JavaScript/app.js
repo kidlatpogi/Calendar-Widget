@@ -332,13 +332,13 @@ function render(items, displayDays = 7, config = null) {
     
     const group = groups[key] || [];
     
-    if (group.length === 0 && isTodayKey) {
-      // Only show "No events" for today if there are no events
+    if (group.length === 0) {
+      // Show "No events" message for empty days
       const noEvDiv = document.createElement('div');
       noEvDiv.className = 'no-events';
       noEvDiv.textContent = 'No events';
       dayDiv.appendChild(noEvDiv);
-    } else if (group.length > 0) {
+    } else {
       group.sort((a,b)=> a.start - b.start);
       for (const g of group) {
         const ev = g.ev;
@@ -393,9 +393,6 @@ function render(items, displayDays = 7, config = null) {
         const eventId = `${formatLocalDateKey(d)}-${ev.summary}-${timeText}`;
         eventDiv.dataset.eventId = eventId;
         
-        // Add mark as done functionality
-        setupEventMarkDone(eventDiv, eventId);
-        
         dayDiv.appendChild(eventDiv);
       }
     }
@@ -407,12 +404,15 @@ function render(items, displayDays = 7, config = null) {
     listEl.innerHTML = '';  // Clear old content
     listEl.appendChild(frag);  // Single DOM insertion
     applyCompletedEventStyles();  // Apply done styles after rendering
+    setupEventMarkDoneDelegate();  // Setup event delegation for mark-done
   }
   setTimeout(reportAppSize, 80);
 }
 
-// Setup mark as done functionality for an event
-function setupEventMarkDone(eventDiv, eventId) {
+// Setup mark as done functionality using event delegation (memory efficient)
+function setupEventMarkDoneDelegate() {
+  if (!listEl) return;
+  
   window.electronAPI.getConfig().then(config => {
     if (!config.ui || !config.ui.enableMarkDone) {
       return;
@@ -420,28 +420,50 @@ function setupEventMarkDone(eventDiv, eventId) {
     
     const method = config.ui.markDoneMethod || 'right-click';
     
-    // Right-click context menu (store handler reference for cleanup)
+    // Remove old delegation listeners first
+    listEl.removeEventListener('contextmenu', handleEventContextMenu);
+    listEl.removeEventListener('dblclick', handleEventDblClick);
+    
+    // Right-click context menu using delegation
     if (method === 'right-click') {
-      const handler = (e) => {
-        e.preventDefault();
-        showEventContextMenu(eventDiv, eventId, e.clientX, e.clientY);
-      };
-      eventDiv.addEventListener('contextmenu', handler, { once: false });
-      eventDiv.dataset.contextMenuHandler = 'true'; // Mark for potential cleanup
+      listEl.addEventListener('contextmenu', handleEventContextMenu);
     }
     
-    // Double-click toggle (store handler reference for cleanup)
+    // Double-click toggle using delegation
     if (method === 'double-click') {
-      const handler = (e) => {
-        e.preventDefault();
-        toggleEventDone(eventDiv, eventId);
-      };
-      eventDiv.addEventListener('dblclick', handler, { once: false });
-      eventDiv.dataset.dblClickHandler = 'true'; // Mark for potential cleanup
+      listEl.addEventListener('dblclick', handleEventDblClick);
     }
   }).catch(err => {
-    // Silently ignore config errors to avoid memory spam from failed promises
+    // Silently ignore config errors
   });
+}
+
+function handleEventContextMenu(e) {
+  const eventDiv = e.target.closest('.event');
+  if (!eventDiv) return;
+  
+  e.preventDefault();
+  const eventId = eventDiv.dataset.eventId;
+  if (eventId) {
+    showEventContextMenu(eventDiv, eventId, e.clientX, e.clientY);
+  }
+}
+
+function handleEventDblClick(e) {
+  const eventDiv = e.target.closest('.event');
+  if (!eventDiv) return;
+  
+  e.preventDefault();
+  const eventId = eventDiv.dataset.eventId;
+  if (eventId) {
+    toggleEventDone(eventDiv, eventId);
+  }
+}
+
+// Setup mark as done functionality for an event (legacy - kept for compatibility)
+function setupEventMarkDone(eventDiv, eventId) {
+  // No longer needed with delegation, but kept for compatibility
+  return;
 }
 
 // Show context menu for event

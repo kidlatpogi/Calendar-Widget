@@ -277,9 +277,10 @@ function render(items, displayDays = 7, config = null) {
 
   // Build display: show displayDays days starting from TODAY
   const displayDays_clamped = displayDays;
+  const showEmptyDays = config?.ui?.showEmptyDays !== false; // Default to true
   const days = [];
   
-  // Optimization: only render days with events (except today which always shows)
+  // Optimization: only render days with events (unless showEmptyDays is enabled)
   const daysWithEvents = new Set(Object.keys(groups));
   daysWithEvents.add(todayKey); // Always show today
   
@@ -287,8 +288,8 @@ function render(items, displayDays = 7, config = null) {
     const d = new Date(today);
     d.setDate(today.getDate() + i);
     const key = formatLocalDateKey(d);
-    // Only add day if it has events or is today
-    if (daysWithEvents.has(key)) {
+    // Add day if: (1) showEmptyDays is ON, OR (2) it has events, OR (3) it's today
+    if (showEmptyDays || daysWithEvents.has(key)) {
       days.push(d);
     }
   }

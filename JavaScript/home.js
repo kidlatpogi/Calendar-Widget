@@ -114,6 +114,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('enable-mark-done').checked = ui.enableMarkDone !== false;
   document.getElementById('mark-done-method').value = ui.markDoneMethod || 'right-click';
   document.getElementById('show-completed-events').checked = ui.showCompletedEvents !== false;
+  document.getElementById('show-empty-days').checked = ui.showEmptyDays !== false;
       }
     
       setupEventListeners() {
@@ -282,6 +283,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ,enableMarkDone: document.getElementById('enable-mark-done').checked
             ,markDoneMethod: document.getElementById('mark-done-method').value
             ,showCompletedEvents: document.getElementById('show-completed-events').checked
+            ,showEmptyDays: document.getElementById('show-empty-days').checked
           };
     
           await this.settingsManager.saveSettings(settings);

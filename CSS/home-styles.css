@@ -3,10 +3,19 @@
    Keep class hooks used by JS: .hidden, .modal, #wrap, .view, .card, buttons, inputs
 */
 
-/* Jersey 10 font - loaded from Google Fonts when applied via settings */
+/* Home Video Font - pixel/retro font by Thomas Jollans */
 @font-face {
-  font-family: 'Jersey 10';
-  src: url('https://fonts.gstatic.com/s/jersey10/v2/wXKvE3UZeePuFYVz7-LY6H0UF-cQGJxV.ttf') format('truetype');
+  font-family: 'Home Video';
+  src: url('../assets/Fonts/HomeVideo-BLG6G.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* LED Dot-Matrix Font - retro digital display font */
+@font-face {
+  font-family: 'LED Dot-Matrix';
+  src: url('../assets/Fonts/LED Dot-Matrix 400.ttf') format('truetype');
   font-weight: 400;
   font-style: normal;
   font-display: swap;

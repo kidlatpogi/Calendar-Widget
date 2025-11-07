@@ -1,3 +1,6 @@
+/* Import Pixelify Sans from Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&display=swap');
+
 /* Transparent background - BrowserWindow in Electron must set transparent:true */
 :root {
   --app-font-family: "Segoe UI", SegoeUI, Arial, sans-serif;
@@ -7,9 +10,17 @@
   --schedule-color: #ffffff;
   --date-time-color: #cfe9ff;
   --highlight-color: #a3ff33;
+  --ongoing-color: #a3ff33;
+  --ongoing-rgba: rgba(163, 255, 51, 0.12);
+  --upcoming-color: #a3ff33;
+  --upcoming-rgba: rgba(163, 255, 51, 0.12);
   --day-color: #ffffff;
   --date-color: #cfe9ff;
   --date-spacing: 16px;
+  --clock-color: #ffffff;
+  --clock-font-family: var(--app-font-family);
+  --clock-size: 18px;
+  --clock-alignment: left;
 }
 
 html,body{
@@ -232,7 +243,8 @@ html,body{
 
 /* Event states */
 .event.past { text-decoration: line-through; opacity: 0.6; }
-.event.ongoing { border-left: 4px solid var(--highlight-color); background: var(--highlight-rgba); padding-left: 6px; }
+.event.ongoing { border-left: 4px solid var(--ongoing-color); background: var(--ongoing-rgba); padding-left: 6px; }
+.event.future { border-left: 4px solid var(--upcoming-color); background: var(--upcoming-rgba); padding-left: 6px; }
 
 /* Make scrollbars visible on Windows */
 #list::-webkit-scrollbar { width: 10px; }
@@ -242,10 +254,42 @@ html,body{
 /* status */
 #status{ margin-top:10px; color: rgba(255,255,255,0.65); font-size: var(--app-font-size); pointer-events: auto; }
 
+/* Completed event styles */
+.event.completed {
+  opacity: 0.5;
+  text-decoration: line-through;
+  cursor: pointer;
+}
+
+.event.completed .event-title {
+  text-decoration: line-through;
+}
+
+.event.hidden {
+  display: none;
+}
+
 .drag-icon{
   width:16px;
   height:16px;
   vertical-align:middle;
   margin-right:4px;
   opacity:0.7;
+}
+
+/* Clock styling */
+.clock {
+  font-family: var(--clock-font-family);
+  color: var(--clock-color);
+  font-size: var(--app-font-large);
+  font-weight: 600;
+  text-align: var(--clock-alignment);
+  font-size: var(--clock-size);
+  margin-bottom: 3px;
+  padding: 3px 0 3px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.clock.hidden {
+  display: none;
 }

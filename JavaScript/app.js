@@ -187,7 +187,67 @@ function parseEventDateObj(dtObj) {
   return null;
 }
 
-function render(items, displayDays = 7) {
+let clockInterval = null;
+let globalClock12Hour = false; // Store 12-hour preference globally
+
+function updateClock(clockDiv, use12Hour = null) {
+  // Use provided value or fall back to global preference
+  const format12 = use12Hour !== null ? use12Hour : globalClock12Hour;
+  
+  const now = new Date();
+  let hours = now.getHours();
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  
+  let timeStr;
+  if (format12) {
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12; // 0 becomes 12
+    timeStr = `${hours}:${minutes} ${ampm}`;
+  } else {
+    hours = String(hours).padStart(2, '0');
+    timeStr = `${hours}:${minutes}`;
+  }
+  
+  clockDiv.textContent = timeStr;
+}
+
+function startClockUpdates(config) {
+  // Clear any existing interval
+  if (clockInterval) {
+    clearInterval(clockInterval);
+    clockInterval = null;
+  }
+  
+  // Only start clock if enabled
+  if (!config?.ui?.showClock) {
+    // Hide existing clock element
+    const clockEl = document.querySelector('.clock');
+    if (clockEl) clockEl.classList.add('hidden');
+    return;
+  }
+  
+  // Show clock element
+  const clockEl = document.querySelector('.clock');
+  if (clockEl) clockEl.classList.remove('hidden');
+  
+  // Store format preference in global variable so interval updates use it
+  globalClock12Hour = config?.ui?.clock12Hour === true;
+  
+  // Update clock every second
+  clockInterval = setInterval(() => {
+    const clockDiv = document.querySelector('.clock');
+    if (clockDiv) {
+      updateClock(clockDiv);
+    }
+  }, 1000);
+  
+  // Initial update
+  if (clockEl) {
+    updateClock(clockEl);
+  }
+}
+function render(items, displayDays = 7, config = null) {
   if (!Array.isArray(items) || items.length === 0) {
     if (listEl) listEl.innerHTML = '<div class="no-events">No events</div>';
     return;
@@ -225,6 +285,7 @@ function render(items, displayDays = 7) {
   }
   
   const now = new Date();
+  const use12Hour = config?.ui?.clock12Hour === true;
   
   // Use DocumentFragment for batch DOM operations (reduces reflows)
   const frag = document.createDocumentFragment();
@@ -235,6 +296,15 @@ function render(items, displayDays = 7) {
     
     const dayDiv = document.createElement('div');
     dayDiv.className = 'day';
+    
+    // Add clock for today if enabled - BEFORE the header
+    if (isTodayKey) {
+      const clockDiv = document.createElement('div');
+      clockDiv.className = 'clock';
+      clockDiv.dataset.clockElement = 'today';
+      dayDiv.appendChild(clockDiv);
+      updateClock(clockDiv);
+    }
     
   const headerDiv = document.createElement('div');
   // Use a separate 'today' class to allow styling the header (day/date) separately
@@ -284,10 +354,15 @@ function render(items, displayDays = 7) {
         const endTime = parseEventDateObj(ev.end || {}) || startTime; // if no end, treat as point event
         const isPast = endTime < now;
         const isOngoing = startTime <= now && now < endTime;
+        const isFuture = startTime > now;
+        
         if (isPast) {
           eventDiv.classList.add('past');
         } else if (isOngoing) {
           eventDiv.classList.add('ongoing');
+        } else if (isFuture && isTodayKey) {
+          // Only apply 'future' styling for future events on TODAY
+          eventDiv.classList.add('future');
         }
         
         if (timeText) {
@@ -303,6 +378,13 @@ function render(items, displayDays = 7) {
         titleSpan.textContent = ev.summary || 'No title';
         eventDiv.appendChild(titleSpan);
         
+        // Create a unique ID for this event
+        const eventId = `${formatLocalDateKey(d)}-${ev.summary}-${timeText}`;
+        eventDiv.dataset.eventId = eventId;
+        
+        // Add mark as done functionality
+        setupEventMarkDone(eventDiv, eventId);
+        
         dayDiv.appendChild(eventDiv);
       }
     }
@@ -313,8 +395,191 @@ function render(items, displayDays = 7) {
   if (listEl) {
     listEl.innerHTML = '';  // Clear old content
     listEl.appendChild(frag);  // Single DOM insertion
+    applyCompletedEventStyles();  // Apply done styles after rendering
   }
   setTimeout(reportAppSize, 80);
+}
+
+// Setup mark as done functionality for an event
+function setupEventMarkDone(eventDiv, eventId) {
+  window.electronAPI.getConfig().then(config => {
+    console.log('[DEBUG] setupEventMarkDone called for event:', eventId);
+    console.log('[DEBUG] Config:', config);
+    console.log('[DEBUG] enableMarkDone:', config.ui?.enableMarkDone);
+    console.log('[DEBUG] markDoneMethod:', config.ui?.markDoneMethod);
+    
+    if (!config.ui || !config.ui.enableMarkDone) {
+      console.log('[DEBUG] Mark as done is disabled, skipping setup');
+      return;
+    }
+    
+    const method = config.ui.markDoneMethod || 'right-click';
+    console.log('[DEBUG] Using method:', method);
+    
+    // Right-click context menu
+    if (method === 'right-click') {
+      console.log('[DEBUG] Setting up right-click handler');
+      eventDiv.addEventListener('contextmenu', (e) => {
+        console.log('[DEBUG] Right-click detected on event:', eventId);
+        e.preventDefault();
+        showEventContextMenu(eventDiv, eventId, e.clientX, e.clientY);
+      });
+    }
+    
+    // Double-click toggle
+    if (method === 'double-click') {
+      console.log('[DEBUG] Setting up double-click handler');
+      eventDiv.addEventListener('dblclick', (e) => {
+        console.log('[DEBUG] Double-click detected on event:', eventId);
+        e.preventDefault();
+        toggleEventDone(eventDiv, eventId);
+      });
+    }
+  }).catch(err => {
+    console.error('[DEBUG] Failed to get config in setupEventMarkDone:', err);
+  });
+}
+
+// Show context menu for event
+function showEventContextMenu(eventDiv, eventId, x, y) {
+  console.log('[DEBUG] showEventContextMenu called for event:', eventId, 'at position:', x, y);
+  
+  // Remove existing context menu if any
+  const existing = document.getElementById('event-context-menu');
+  if (existing) {
+    console.log('[DEBUG] Removing existing context menu');
+    existing.remove();
+  }
+  
+  const menu = document.createElement('div');
+  menu.id = 'event-context-menu';
+  menu.style.cssText = `
+    position: fixed;
+    left: ${x}px;
+    top: ${y}px;
+    background: #1a1a1a;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 6px;
+    padding: 4px;
+    z-index: 10000;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    font-size: 13px;
+    pointer-events: auto;
+  `;
+  
+  const isCompleted = eventDiv.classList.contains('completed');
+  console.log('[DEBUG] Event completed status:', isCompleted);
+  
+  const button = document.createElement('button');
+  button.style.cssText = `
+    display: block;
+    width: 100%;
+    padding: 8px 12px;
+    background: transparent;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    text-align: left;
+    border-radius: 4px;
+    pointer-events: auto;
+  `;
+  button.textContent = isCompleted ? '✓ Mark as Pending' : '✗ Mark as Done';
+  button.onmouseover = () => button.style.background = 'rgba(255,255,255,0.1)';
+  button.onmouseout = () => button.style.background = 'transparent';
+  button.onclick = () => {
+    console.log('[DEBUG] Context menu button clicked for event:', eventId);
+    toggleEventDone(eventDiv, eventId);
+    menu.remove();
+  };
+  
+  menu.appendChild(button);
+  document.body.appendChild(menu);
+  console.log('[DEBUG] Context menu added to DOM');
+  
+  // Close menu when clicking elsewhere
+  setTimeout(() => {
+    document.addEventListener('click', function closeMenu() {
+      console.log('[DEBUG] Closing context menu');
+      menu.remove();
+      document.removeEventListener('click', closeMenu);
+    });
+  }, 100);
+}
+
+// Toggle event done status
+function toggleEventDone(eventDiv, eventId) {
+  console.log('[DEBUG] toggleEventDone called for event:', eventId);
+  console.log('[DEBUG] Current classList before toggle:', Array.from(eventDiv.classList));
+  
+  eventDiv.classList.toggle('completed');
+  console.log('[DEBUG] classList after toggle:', Array.from(eventDiv.classList));
+  
+  // Save to config
+  window.electronAPI.getConfig().then(config => {
+    console.log('[DEBUG] Got config in toggleEventDone:', config);
+    
+    if (!config.completedEvents) config.completedEvents = {};
+    
+    if (eventDiv.classList.contains('completed')) {
+      console.log('[DEBUG] Marking event as completed');
+      config.completedEvents[eventId] = true;
+      // Hide completed event if showCompletedEvents is disabled
+      if (!config.ui || config.ui.showCompletedEvents === false) {
+        console.log('[DEBUG] Hiding completed event (showCompletedEvents is false)');
+        eventDiv.classList.add('hidden');
+      }
+    } else {
+      console.log('[DEBUG] Marking event as pending (removing from completedEvents)');
+      delete config.completedEvents[eventId];
+      // Show event again if it was hidden
+      eventDiv.classList.remove('hidden');
+    }
+    
+    console.log('[DEBUG] Saving config with completedEvents:', config.completedEvents);
+    // Save the updated config to persist changes
+    window.electronAPI.saveConfig(config).then(() => {
+      console.log('[DEBUG] Config saved successfully');
+    }).catch(err => {
+      console.error('[DEBUG] Failed to save config:', err);
+      // Revert the visual change if save failed
+      eventDiv.classList.toggle('completed');
+      if (!eventDiv.classList.contains('completed')) {
+        eventDiv.classList.remove('hidden');
+      }
+    });
+  }).catch(err => {
+    console.error('[DEBUG] Failed to get config:', err);
+    // Revert the visual change if get failed
+    eventDiv.classList.toggle('completed');
+  });
+}
+
+// Apply completed event styles after rendering
+function applyCompletedEventStyles() {
+  window.electronAPI.getConfig().then(config => {
+    if (!config.completedEvents) return;
+    
+    document.querySelectorAll('.event').forEach(eventDiv => {
+      const eventId = eventDiv.dataset.eventId;
+      if (config.completedEvents[eventId]) {
+        eventDiv.classList.add('completed');
+      }
+      
+      // Hide completed AND past events when showCompletedEvents is OFF
+      const isPast = eventDiv.classList.contains('past');
+      const isCompleted = eventDiv.classList.contains('completed');
+      
+      if (!config.ui || config.ui.showCompletedEvents === false) {
+        // Hide both completed events and past events
+        if (isCompleted || isPast) {
+          eventDiv.classList.add('hidden');
+        }
+      } else {
+        // Show all events when setting is ON
+        eventDiv.classList.remove('hidden');
+      }
+    });
+  });
 }
 
 // (Always use days mode rendering)
@@ -337,7 +602,7 @@ async function load() {
     // Get days to display from config (always days mode)
     let displayDays = Number(cfg.ui?.displayDays) || 14;  // Match main.js default of 14, not 7
     displayDays = Math.max(1, Math.min(30, displayDays));  // Also match main.js clamp to 30, not 14
-    render(items, displayDays);
+    render(items, displayDays, cfg);
     
     // Check for upcoming events and show notification if enabled
     if (cfg.ui?.eventNotifications && items.length > 0) {
@@ -357,7 +622,6 @@ async function load() {
     
     setStatus('');
   } catch (err) {
-    console.error('load failed', err);
     setStatus('Failed to load events');
     if (listEl) {
       const errorMsg = err ? err.toString() : 'Unknown error';
@@ -382,22 +646,17 @@ async function reportAppSize() {
   const desiredHeight = Math.ceil((el.scrollHeight || rect.height) + 24); // cushion for rounding and decorations
 
     try {
-      console.log('[reportAppSize] requesting size', { width: desiredWidth, height: desiredHeight });
       await window.electronAPI.setWindowBounds('main', {
         width: desiredWidth,
         height: desiredHeight,
         persist: false
       });
-      console.log('[reportAppSize] request completed');
       // Verify applied size and retry with cushion if the system applied a smaller size
       try {
         const applied = await window.electronAPI.getContentSize('main');
-        console.log('[reportAppSize] applied content size:', applied);
         if (applied && applied[1] < desiredHeight) {
           const retryH = desiredHeight + 32;
-          console.log('[reportAppSize] applied smaller than desired, retrying with', retryH);
           await window.electronAPI.setWindowBounds('main', { width: desiredWidth, height: retryH, persist: false });
-          console.log('[reportAppSize] retry completed');
         }
       } catch (e) { /* ignore */ }
     } catch (e) { /* ignore */ }
@@ -429,17 +688,49 @@ async function applyUiFromConfig(cfg) {
       const b = parseInt(hex.substring(4,6),16);
       root.style.setProperty('--highlight-rgba', `rgba(${r}, ${g}, ${b}, 0.12)`);
     } catch (e) { root.style.setProperty('--highlight-rgba', 'rgba(163,255,51,0.12)'); }
+    // Also use highlightColor for ongoing events by default
+    root.style.setProperty('--ongoing-color', ui.highlightColor);
+    root.style.setProperty('--ongoing-rgba', `rgba(${parseInt(ui.highlightColor.substring(1,3),16)}, ${parseInt(ui.highlightColor.substring(3,5),16)}, ${parseInt(ui.highlightColor.substring(5,7),16)}, 0.12)`);
+  }
+  // Use upcomingColor if available, fallback to highlightColor for backward compatibility
+  if (ui.upcomingColor) {
+    root.style.setProperty('--upcoming-color', ui.upcomingColor);
+    // compute a subtle rgba background for upcoming events (12% alpha)
+    try {
+      const hex = ui.upcomingColor.replace('#','');
+      const r = parseInt(hex.substring(0,2),16);
+      const g = parseInt(hex.substring(2,4),16);
+      const b = parseInt(hex.substring(4,6),16);
+      root.style.setProperty('--upcoming-rgba', `rgba(${r}, ${g}, ${b}, 0.12)`);
+    } catch (e) { root.style.setProperty('--upcoming-rgba', 'rgba(163,255,51,0.12)'); }
+  } else if (ui.highlightColor) {
+    // Fallback to highlightColor if upcomingColor not set
+    root.style.setProperty('--upcoming-color', ui.highlightColor);
+    try {
+      const hex = ui.highlightColor.replace('#','');
+      const r = parseInt(hex.substring(0,2),16);
+      const g = parseInt(hex.substring(2,4),16);
+      const b = parseInt(hex.substring(4,6),16);
+      root.style.setProperty('--upcoming-rgba', `rgba(${r}, ${g}, ${b}, 0.12)`);
+    } catch (e) { root.style.setProperty('--upcoming-rgba', 'rgba(163,255,51,0.12)'); }
   }
   if (ui.dayColor) root.style.setProperty('--day-color', ui.dayColor);
   if (ui.dateColor) root.style.setProperty('--date-color', ui.dateColor);
   if (ui.dateSpacing) root.style.setProperty('--date-spacing', ui.dateSpacing + 'px');
+  if (ui.clockColor) root.style.setProperty('--clock-color', ui.clockColor);
+  if (ui.clockFontFamily) root.style.setProperty('--clock-font-family', ui.clockFontFamily);
+  if (ui.clockSize) root.style.setProperty('--clock-size', ui.clockSize + 'px');
+  if (ui.clockAlignment) root.style.setProperty('--clock-alignment', ui.clockAlignment);
+  
+  // Start/stop clock updates based on config
+  startClockUpdates(cfg);
   } catch (e) { /* ignore */ }
 }
 
 if (refreshBtn) refreshBtn.addEventListener('click', load);
 if (homeBtn) homeBtn.addEventListener('click', async () => {
   try { await window.electronAPI.openHome(); }
-  catch (e) { console.error('openHome failed', e); setStatus('Failed to open welcome'); }
+  catch (e) { setStatus('Failed to open welcome'); }
 });
 
 // Toggle click-through permanently
@@ -455,7 +746,7 @@ if (ctBtn) ctBtn.addEventListener('click', async () => {
       await window.electronAPI.setConfig({ clickThrough: !!clickThroughEnabled });
     }
     // button-click toggles click-through; hotkey tip is shown only for keyboard invocations
-  } catch (e) { console.error('toggle click-through failed', e); }
+  } catch (e) { }
 });
 
 // Keyboard fallback: Ctrl+Shift+C toggles click-through from the renderer in case the on-screen control is unreachable
@@ -610,21 +901,19 @@ const dragBar = document.getElementById('drag-bar');
 if (dragBar) {
   dragBar.addEventListener('pointerdown', async (ev) => {
     try {
-      console.log('drag-bar pointerdown', ev.type, ev.button);
       // Ensure window receives mouse events while dragging
       if (window.electronAPI && window.electronAPI.setClickThrough) await window.electronAPI.setClickThrough('main', false);
-    } catch (e) { console.error('drag-bar pointerdown error', e); }
+    } catch (e) { }
   });
 
   dragBar.addEventListener('pointerup', async (ev) => {
-    try { console.log('drag-bar pointerup', ev.type); } catch (e) {}
     try {
       if (window.electronAPI && window.electronAPI.setClickThrough) await window.electronAPI.setClickThrough('main', clickThroughEnabled);
-    } catch (e) { console.error('drag-bar pointerup restore error', e); }
+    } catch (e) { }
   });
 
-  dragBar.addEventListener('pointercancel', (ev) => { try { console.log('drag-bar pointercancel'); } catch (e) {} });
-  dragBar.addEventListener('pointerleave', (ev) => { try { console.log('drag-bar pointerleave'); } catch (e) {} });
+  dragBar.addEventListener('pointercancel', (ev) => { });
+  dragBar.addEventListener('pointerleave', (ev) => { });
 }
 
 // Backwards compatible: still handle drag on larger handle container if present

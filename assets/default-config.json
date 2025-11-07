@@ -9,10 +9,21 @@
     ,"scheduleColor": "#ffffff",
     "dateTimeColor": "#cfe9ff",
     "highlightColor": "#a3ff33",
+    "upcomingColor": "#a3ff33",
     "dayColor": "#ffffff",
     "dateColor": "#cfe9ff",
-    "dateSpacing": 16
+    "dateSpacing": 16,
+    "showClock": true,
+    "clockColor": "#ffffff",
+    "clockFontFamily": "Segoe UI",
+    "clockSize": 18,
+    "clockAlignment": "left",
+    "clock12Hour": false,
+    "enableMarkDone": true,
+    "markDoneMethod": "right-click",
+    "showCompletedEvents": true
   },
+  "completedEvents": {},
   "acceptedTerms": false,
   "windowBounds": {},
   "firstLaunch": true

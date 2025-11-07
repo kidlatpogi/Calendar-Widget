@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openMain: () => ipcRenderer.invoke('open-main'),
   openHome: () => ipcRenderer.invoke('open-home'),
   setConfig: (cfg) => ipcRenderer.invoke('set-config', cfg),
+  getConfig: () => ipcRenderer.invoke('get-config'),
+  saveConfig: (cfg) => ipcRenderer.invoke('save-config', cfg),
   openUrl: (url) => ipcRenderer.invoke('open-url', url),
   openTutorial: () => ipcRenderer.invoke('open-tutorial'),
   reportHomeSize: (size) => ipcRenderer.invoke('home-resize', size),

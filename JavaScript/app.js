@@ -889,6 +889,15 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   } catch (e) { /* ignore */ }
 
+  // Listen for refresh event sent from tray menu (FIX for refresh button)
+  try {
+    if (window.electronAPI && window.electronAPI.onRefresh) {
+      window.electronAPI.onRefresh(() => {
+        try { if (typeof load === 'function') load(); } catch (e) { /* ignore */ }
+      });
+    }
+  } catch (e) { /* ignore */ }
+
   load();
   // Ensure layout stabilization: request size twice (immediately and after a short delay)
   setTimeout(() => { try { if (typeof reportAppSize === 'function') reportAppSize(); } catch (e) {} }, 250);

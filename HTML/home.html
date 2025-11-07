@@ -56,22 +56,18 @@
           <div class="setting-group">
             <label for="fetch-interval">Fetch Interval (minutes):</label>
             <select id="fetch-interval">
-              <!-- allow 1 through 14 minutes -->
               <option value="1">1</option>
-              <option value="2">2</option>
               <option value="3">3</option>
-              <option value="4">4</option>
               <option value="5">5</option>
-              <option value="6">6</option>
-              <option value="7">7</option>
-              <option value="8">8</option>
-              <option value="9">9</option>
               <option value="10">10</option>
-              <option value="11">11</option>
-              <option value="12">12</option>
-              <option value="13">13</option>
-              <option value="14">14</option>
+              <option value="30">30</option>
+              <option value="60">60</option>
             </select>
+          </div>
+          
+          <div class="setting-group" id="custom-interval-group" style="display: none;">
+            <label for="custom-fetch-interval">Custom Interval (minutes):</label>
+            <input type="number" id="custom-fetch-interval" min="1" max="1440" value="15" />
           </div>
         </div>
 
@@ -114,7 +110,9 @@
               <option value="Segoe UI">Segoe UI</option>
               <option value="Arial">Arial</option>
               <option value="Helvetica">Helvetica</option>
+              <option value="Times New Roman">Times New Roman</option>
               <option value="Courier New">Courier New</option>
+              <option value="Pixelify Sans">Pixelify Sans</option>
             </select>
           </div>
 
@@ -150,6 +148,93 @@
           <div class="setting-group">
             <label for="date-color">Date Text Color:</label>
             <input type="color" id="date-color" value="#cfe9ff" />
+          </div>
+
+          <div class="setting-group">
+            <label for="upcoming-color">Upcoming Event Color:</label>
+            <input type="color" id="upcoming-color" value="#a3ff33" />
+          </div>
+        </div>
+
+        <!-- Clock Settings -->
+        <div class="settings-section">
+          <h4>Clock Display</h4>
+          <div class="setting-group">
+            <label>
+              <input type="checkbox" id="show-clock" />
+              Show Clock on Today
+            </label>
+          </div>
+
+          <div class="setting-group">
+            <label for="clock-color">Clock Color:</label>
+            <input type="color" id="clock-color" value="#ffffff" />
+          </div>
+
+          <div class="setting-group">
+            <label for="clock-font-family">Clock Font:</label>
+            <select id="clock-font-family">
+              <option value="Segoe UI">Segoe UI</option>
+              <option value="Arial">Arial</option>
+              <option value="Helvetica">Helvetica</option>
+              <option value="Times New Roman">Times New Roman</option>
+              <option value="Courier New">Courier New</option>
+              <option value="Pixelify Sans">Pixelify Sans</option>
+            </select>
+          </div>
+
+          <div class="setting-group">
+            <label for="clock-size">Clock Size (px):</label>
+            <input type="number" id="clock-size" min="10" max="48" value="18" />
+          </div>
+
+          <div class="setting-group">
+            <label for="clock-alignment">Clock Alignment:</label>
+            <select id="clock-alignment">
+              <option value="left">Left</option>
+              <option value="center">Center</option>
+              <option value="right">Right</option>
+            </select>
+          </div>
+
+          <div class="setting-group">
+            <label>
+              <input type="checkbox" id="clock-12hour" />
+              Use 12-Hour Format (AM/PM)
+            </label>
+          </div>
+        </div>
+
+        <!-- Task Done Settings -->
+        <div class="settings-section">
+          <h4>Task Done Settings</h4>
+          <div class="setting-group">
+            <label>
+              <input type="checkbox" id="enable-mark-done" />
+              Enable Mark as Done
+            </label>
+          </div>
+
+          <div class="setting-group">
+            <label for="mark-done-method">Mark Done Method:</label>
+            <select id="mark-done-method">
+              <option value="right-click">Right-click Menu</option>
+              <option value="double-click">Double-click</option>
+            </select>
+          </div>
+
+          <div class="setting-group">
+            <label>
+              <input type="checkbox" id="show-completed-events" />
+              Show Completed Events
+            </label>
+          </div>
+
+          <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.1); font-size: 12px; color: #aaa; line-height: 1.4;">
+            <strong>How to use:</strong><br>
+            • Right-click: Open menu to mark done/pending<br>
+            • Double-click: Toggle instantly<br>
+            Completed events show with strikethrough
           </div>
         </div>
       </div>

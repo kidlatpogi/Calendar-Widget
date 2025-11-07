@@ -99,9 +99,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('highlight-color').value = ui.highlightColor || '#a3ff33';
   document.getElementById('day-color').value = ui.dayColor || '#ffffff';
   document.getElementById('date-color').value = ui.dateColor || '#cfe9ff';
+  document.getElementById('upcoming-color').value = ui.upcomingColor || '#a3ff33';
   // Display settings
   document.getElementById('display-days').value = ui.displayDays || 7;
   document.getElementById('date-spacing').value = ui.dateSpacing || 16;
+  // Clock settings
+  document.getElementById('show-clock').checked = ui.showClock !== false;
+  document.getElementById('clock-color').value = ui.clockColor || '#ffffff';
+  document.getElementById('clock-font-family').value = ui.clockFontFamily || 'Segoe UI';
+  document.getElementById('clock-size').value = ui.clockSize || 18;
+  document.getElementById('clock-alignment').value = ui.clockAlignment || 'left';
+  document.getElementById('clock-12hour').checked = ui.clock12Hour === true;
+  // Mark as done settings
+  document.getElementById('enable-mark-done').checked = ui.enableMarkDone !== false;
+  document.getElementById('mark-done-method').value = ui.markDoneMethod || 'right-click';
+  document.getElementById('show-completed-events').checked = ui.showCompletedEvents !== false;
       }
     
       setupEventListeners() {
@@ -125,6 +137,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         // Settings Actions
         document.getElementById('save-settings')?.addEventListener('click', () => this.saveSettings());
+        
+        // Handle fetch interval change (show/hide custom input)
+        const fetchIntervalEl = document.getElementById('fetch-interval');
+        const customIntervalEl = document.getElementById('custom-fetch-interval');
+        const customIntervalGroupEl = document.getElementById('custom-interval-group');
+        if (fetchIntervalEl) {
+          fetchIntervalEl.addEventListener('change', (ev) => {
+            // Custom interval feature can be added later if needed
+            // For now, just sync the value
+          });
+        }
+        
         // Live preview & persist font-size on change (debounced)
         const fontSizeEl = document.getElementById('font-size');
         if (fontSizeEl) {
@@ -246,13 +270,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             highlightColor: document.getElementById('highlight-color').value
             ,dayColor: document.getElementById('day-color').value
             ,dateColor: document.getElementById('date-color').value
+            ,upcomingColor: document.getElementById('upcoming-color').value
             ,displayDays: Number(document.getElementById('display-days').value) || 7
             ,dateSpacing: Number(document.getElementById('date-spacing').value) || 16
+            ,showClock: document.getElementById('show-clock').checked
+            ,clockColor: document.getElementById('clock-color').value
+            ,clockFontFamily: document.getElementById('clock-font-family').value
+            ,clockSize: Number(document.getElementById('clock-size').value) || 18
+            ,clockAlignment: document.getElementById('clock-alignment').value
+            ,clock12Hour: document.getElementById('clock-12hour').checked
+            ,enableMarkDone: document.getElementById('enable-mark-done').checked
+            ,markDoneMethod: document.getElementById('mark-done-method').value
+            ,showCompletedEvents: document.getElementById('show-completed-events').checked
           };
     
-          console.log('[saveSettings] sending settings:', settings);
           await this.settingsManager.saveSettings(settings);
-          console.log('[saveSettings] settings saved successfully');
           // Keep the settings view open (do not automatically navigate away).
           // Refresh local copy of config and update UI so persisted values are reflected.
           try {

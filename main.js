@@ -25,7 +25,6 @@ function ensureUserConfigExists() {
           // Ensure user directory exists
           try { fs.mkdirSync(userCfgDir, { recursive: true }); } catch (e) {}
           fs.copyFileSync(packagedDefaultCfg, cfgPath);
-          console.log('Copied default config to userData:', cfgPath);
         } catch (e) {
           console.warn('Failed to copy packaged default config to userData', e);
         }
@@ -34,7 +33,6 @@ function ensureUserConfigExists() {
         try { fs.mkdirSync(userCfgDir, { recursive: true }); } catch (e) {}
         const minimal = { icals: [], ui: {}, acceptedTerms: false, windowBounds: {} };
         fs.writeFileSync(cfgPath, JSON.stringify(minimal, null, 2));
-        console.log('Wrote minimal config to userData:', cfgPath);
       }
     }
   } catch (e) {
@@ -168,7 +166,6 @@ class IcalProcessor {
                     const lastModified = res.headers && res.headers['last-modified'] ? res.headers['last-modified'] : null;
                     
                     if (res.statusCode >= 200 && res.statusCode < 300) {
-                      console.log(`fetchText success [${res.statusCode}] ${url.substring(0, 80)}...`);
                       resolve({ status: res.statusCode, body, etag, lastModified });
                     } else {
                       console.warn(`fetchText [${res.statusCode}] ${url}`);
@@ -390,16 +387,12 @@ class WindowManager {
 
     setupAutoLaunch() {
         try {
-      console.log('[setupAutoLaunch] called, app.isPackaged =', app.isPackaged);
-      
       // Don't enable auto-launch during development (avoid registering electron.exe)
       if (!app.isPackaged) {
-        console.log('[setupAutoLaunch] Skipping in development mode (app not packaged)');
         return;
       }
       
             const exePath = app.getPath('exe');
-            console.log('[setupAutoLaunch] app exe path:', exePath);
             
             const autoLauncher = new AutoLaunch({
                 name: 'Calendar Widget',
@@ -408,20 +401,13 @@ class WindowManager {
 
             const cfg = this.cfgManager?.config || {};
             const shouldAutoStart = cfg.ui?.autoStart || false;
-            console.log('[setupAutoLaunch] config.ui.autoStart =', shouldAutoStart);
             
             if (shouldAutoStart) {
-              console.log('[setupAutoLaunch] Enabling auto-launch...');
-              autoLauncher.enable().then(() => {
-                console.log('[setupAutoLaunch] Auto-launch enabled successfully');
-              }).catch((err) => {
+              autoLauncher.enable().catch((err) => {
                 console.error('[setupAutoLaunch] Failed to enable auto-launch:', err);
               });
             } else {
-              console.log('[setupAutoLaunch] Disabling auto-launch...');
-              autoLauncher.disable().then(() => {
-                console.log('[setupAutoLaunch] Auto-launch disabled successfully');
-              }).catch((err) => {
+              autoLauncher.disable().catch((err) => {
                 console.error('[setupAutoLaunch] Failed to disable auto-launch:', err);
               });
             }
@@ -571,6 +557,24 @@ class WindowManager {
 
         ipcMain.handle('list-config', async () => this.cfgManager.config);
 
+        ipcMain.handle('get-config', async () => this.cfgManager.config);
+
+        ipcMain.handle('save-config', async (ev, cfg) => {
+          if (this.cfgManager && cfg) {
+            // Merge with existing config
+            Object.assign(this.cfgManager.config, cfg);
+            await this.cfgManager.saveConfig();
+            
+            // Broadcast config update to all windows
+            const sendUpdate = (win) => { if (win && !win.isDestroyed()) win.webContents.send('config-updated', this.cfgManager.config); };
+            sendUpdate(this.win);
+            sendUpdate(this.homeWin);
+            
+            return true;
+          }
+          return false;
+        });
+
         ipcMain.handle('home-resize', async (ev, size) => {
             const bw = BrowserWindow.fromWebContents(ev.sender);
             if (!bw || !size) return false;
@@ -608,9 +612,6 @@ class WindowManager {
                 if (which === 'main') applyFor(this.win);
                 if (which === 'home') applyFor(this.homeWin);
 
-                // Diagnostic logging: report what was requested and what is applied.
-                try { console.log(`[set-window-bounds] requested which=${which} desiredW=${desiredW} desiredH=${desiredH} persist=${persist}`); } catch (e) {}
-
                 if (persist) {
                   const cfg = this.cfgManager.config;
                   cfg.windowBounds = cfg.windowBounds || {};
@@ -637,7 +638,7 @@ class WindowManager {
                     if (typeof newH === 'number') newH = Math.min(newH, maxContentH);
                     if (typeof newW === 'number') newW = Math.min(newW, maxContentW);
                     try { targetWin.setContentSize(newW, newH); } catch (e) { /* ignore */ }
-                    try { const applied = targetWin.getContentSize(); console.log(`[set-window-bounds] applied contentSize for ${which}: ${applied[0]}x${applied[1]}`); } catch (e) {}
+                    try { targetWin.getContentSize(); } catch (e) {}
                   }
                 } catch (e) { /* ignore display calc errors */ }
 
@@ -751,7 +752,6 @@ class WindowManager {
                 .filter(i => (i.url || '').trim() !== '');
 
             if (icals.length === 0) {
-                console.log('fetch-events: no iCals configured');
                 return [];
             }
 
@@ -772,13 +772,11 @@ class WindowManager {
                 try {
                     const url = (entry.url || '').trim();
                     if (!url) continue;
-                    console.log(`Fetching iCal: ${url.substring(0, 80)}...`);
                     const headers = {};
                     if (entry.etag) headers['If-None-Match'] = entry.etag;
                     if (entry.lastModified) headers['If-Modified-Since'] = entry.lastModified;
                     const res = await this.processor.fetchText(url, headers);
                     if (res.status === 304 || !res.body) {
-                        console.log(`  -> no changes (304)`);
                         continue;
                     }
                     if (res.body && typeof res.body === 'string') {
@@ -1028,7 +1026,7 @@ class WindowManager {
                 try { if (this.win && !this.win.isDestroyed()) this.win.webContents.send('toggle-collapse'); } catch (e) {}
               } catch (e) { console.error('tray collapse toggle failed', e); }
             } },
-        { label: 'Toggle Click-through', click: () => { try { const next = this.toggleClickThrough(); console.log('click-through toggled ->', next); } catch (e) { console.error(e); } } },
+        { label: 'Toggle Click-through', click: () => { try { this.toggleClickThrough(); } catch (e) { console.error(e); } } },
         { label: 'Refresh', click: () => { if (this.win) this.win.webContents.send('refresh-events'); } },
                 { type: 'separator' },
                 { label: 'Quit', click: () => app.quit() }
@@ -1063,8 +1061,6 @@ app.whenReady().then(() => {
       console.warn('Failed to clear application menu', e);
     }
   cfgManager = new ConfigManager(cfgPath);
-  // Inform where debug logs will be written
-  try { console.log('resize debug logs:', debugLogPathUser, debugLogPathLocal); appendDebugLog('app started'); } catch (e) {}
     icalProcessor = new IcalProcessor(cfgManager, null, null);
     windowManager = new WindowManager(cfgManager, icalProcessor);
     
@@ -1072,11 +1068,9 @@ app.whenReady().then(() => {
     
     // Check if this is the first launch
     const isFirstLaunch = cfgManager.config.firstLaunch === true;
-    console.log('[app.whenReady] First launch:', isFirstLaunch);
     
     if (isFirstLaunch) {
       // First launch: show home window for setup
-      console.log('[app.whenReady] Showing home window for first-time setup');
       windowManager.createHomeWindow();
       icalProcessor.homeWindow = windowManager.homeWin;
       
@@ -1084,7 +1078,6 @@ app.whenReady().then(() => {
       cfgManager.updateConfig({ firstLaunch: false });
     } else {
       // Subsequent launches: show calendar directly
-      console.log('[app.whenReady] Showing calendar window (not first launch)');
       windowManager.createMainWindow();
       icalProcessor.mainWindow = windowManager.win;
     }
@@ -1098,7 +1091,7 @@ app.whenReady().then(() => {
     // Register a global shortcut to toggle click-through quickly (Ctrl+Shift+C)
     try {
       globalShortcut.register('Control+Shift+C', () => {
-        try { const next = windowManager.toggleClickThrough(); console.log('Global shortcut toggled click-through ->', next); } catch (e) { console.error(e); }
+        try { windowManager.toggleClickThrough(); } catch (e) { console.error(e); }
       });
       // NOTE: removed global Ctrl+Shift+M registration - collapse toggle will be handled in renderer
     } catch (e) {

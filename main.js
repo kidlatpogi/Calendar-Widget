@@ -292,9 +292,14 @@ class WindowManager {
     const cfg = this.cfgManager?.config || {};
     const windowPos = cfg.ui?.windowPos || { x: undefined, y: undefined };
     
+    // Get screen dimensions to make window full height
+    const { screen } = require('electron');
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { height: screenHeight } = primaryDisplay.workAreaSize;
+    
     const windowOptions = {
       width: 400,
-      height: 620,
+      height: screenHeight,
       // Use native window chrome so OS provides minimize/maximize/close
       transparent: true,
       frame: false,
@@ -741,13 +746,17 @@ class WindowManager {
 
             let allEvents = [];
             const now = new Date();
+            // Set to start of today (midnight) in LOCAL timezone
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+            
             // Respect user-configured displayDays when filtering fetched events so the
             // renderer receives events for all days the user asked to see. Default to 14.
             const configuredDays = Number(this.cfgManager.config?.ui?.displayDays) || 14;
             const daysAhead = Math.max(1, Math.min(30, configuredDays)); // clamp to reasonable range
-            const futureDate = new Date(now);
-            futureDate.setDate(futureDate.getDate() + daysAhead);
-            
+            // Add 1 to ensure we get the full last day (e.g., if displayDays=9, we want days 0-8, which is 9 days)
+            const futureDate = new Date(today);
+            futureDate.setDate(today.getDate() + daysAhead);
+            futureDate.setHours(23, 59, 59, 999); // End of the last day
             for (const entry of icals) {
                 try {
                     const url = (entry.url || '').trim();
@@ -763,16 +772,16 @@ class WindowManager {
                     }
                     if (res.body && typeof res.body === 'string') {
                         const events = this._parseIcal(res.body);
-                        // Filter to only keep events within the next `daysAhead` days + 1 day past
-                        const past = new Date(now);
-                        past.setDate(past.getDate() - 1);
+                        // Filter to only keep events from TODAY onwards (no past events)
                         const filtered = events.filter(ev => {
                             const start = ev.start?.date || ev.start?.dateTime;
                             if (!start) return true; // keep all-day events with no explicit date
                             const startDate = new Date(start);
-                            return startDate >= past && startDate <= futureDate;
+                            // Compare at midnight level to include all events starting today
+                            const eventDay = new Date(startDate);
+                            eventDay.setHours(0, 0, 0, 0);
+                            return eventDay >= today && eventDay <= futureDate;
                         });
-                        console.log(`  -> parsed ${events.length} events, filtered to ${filtered.length}`);
                         allEvents = allEvents.concat(filtered);
                         // Clear the res.body from memory
                         res.body = null;
@@ -781,7 +790,6 @@ class WindowManager {
                     console.error(`Failed to fetch/parse ${entry.url}:`, err.message);
                 }
             }
-            console.log(`fetch-events returning ${allEvents.length} total events`);
             return allEvents;
         } catch (e) {
             console.error('_fetchEventsLogic error', e);
@@ -820,15 +828,129 @@ class WindowManager {
                     }
                 }
                 
-                // Only push if we have at least summary or start date (avoid empty events)
-                if ((event.summary && event.summary !== 'No title') || event.start) {
-                    events.push(event);
+                // Check for recurring event (RRULE)
+                const rruleMatch = eventBlock.match(/RRULE:(.+?)(?:\r?\n|$)/);
+                if (rruleMatch && event.start) {
+                    // Expand recurring events for the next 90 days
+                    const expandedEvents = this._expandRecurringEvent(event, rruleMatch[1].trim());
+                    events.push(...expandedEvents);
+                } else {
+                    // Only push if we have at least summary or start date (avoid empty events)
+                    if ((event.summary && event.summary !== 'No title') || event.start) {
+                        events.push(event);
+                    }
                 }
             }
         } catch (e) {
             console.warn('iCal parse error:', e.message);
         }
         return events;
+    }
+    
+    _expandRecurringEvent(baseEvent, rruleStr) {
+        const expanded = [];
+        try {
+            // Parse RRULE components
+            const rruleParts = {};
+            rruleStr.split(';').forEach(part => {
+                const [key, value] = part.split('=');
+                if (key && value) rruleParts[key] = value;
+            });
+            
+            const freq = rruleParts['FREQ'];
+            const count = parseInt(rruleParts['COUNT']) || 52; // Default to 52 occurrences
+            const interval = parseInt(rruleParts['INTERVAL']) || 1;
+            
+            if (!freq || !baseEvent.start) return [baseEvent];
+            
+            // Get start date/time
+            const startStr = baseEvent.start.dateTime || baseEvent.start.date;
+            if (!startStr) return [baseEvent];
+            
+            const baseDate = new Date(startStr);
+            if (isNaN(baseDate.getTime())) return [baseEvent];
+            
+            // Calculate duration if end time exists
+            let duration = 0;
+            if (baseEvent.end) {
+                const endStr = baseEvent.end.dateTime || baseEvent.end.date;
+                const endDate = new Date(endStr);
+                if (!isNaN(endDate.getTime())) {
+                    duration = endDate.getTime() - baseDate.getTime();
+                }
+            }
+            
+            // Expand based on frequency (limit to reasonable number)
+            const maxOccurrences = Math.min(count, 100);
+            for (let i = 0; i < maxOccurrences; i++) {
+                const occurrenceDate = new Date(baseDate);
+                
+                // Add interval based on frequency
+                if (freq === 'DAILY') {
+                    occurrenceDate.setDate(baseDate.getDate() + (i * interval));
+                } else if (freq === 'WEEKLY') {
+                    occurrenceDate.setDate(baseDate.getDate() + (i * interval * 7));
+                } else if (freq === 'MONTHLY') {
+                    occurrenceDate.setMonth(baseDate.getMonth() + (i * interval));
+                } else if (freq === 'YEARLY') {
+                    occurrenceDate.setFullYear(baseDate.getFullYear() + (i * interval));
+                } else {
+                    // Unsupported frequency, just return base event
+                    return [baseEvent];
+                }
+                
+                // Create occurrence event
+                const occurrence = {
+                    summary: baseEvent.summary,
+                    start: null,
+                    end: null
+                };
+                
+                // Format start time
+                if (baseEvent.start.dateTime) {
+                    const y = occurrenceDate.getFullYear();
+                    const m = String(occurrenceDate.getMonth() + 1).padStart(2, '0');
+                    const d = String(occurrenceDate.getDate()).padStart(2, '0');
+                    const hh = String(occurrenceDate.getHours()).padStart(2, '0');
+                    const mm = String(occurrenceDate.getMinutes()).padStart(2, '0');
+                    const ss = String(occurrenceDate.getSeconds()).padStart(2, '0');
+                    occurrence.start = { dateTime: `${y}-${m}-${d}T${hh}:${mm}:${ss}` };
+                    
+                    // Calculate end time
+                    if (duration > 0) {
+                        const endDate = new Date(occurrenceDate.getTime() + duration);
+                        const ey = endDate.getFullYear();
+                        const em = String(endDate.getMonth() + 1).padStart(2, '0');
+                        const ed = String(endDate.getDate()).padStart(2, '0');
+                        const ehh = String(endDate.getHours()).padStart(2, '0');
+                        const emm = String(endDate.getMinutes()).padStart(2, '0');
+                        const ess = String(endDate.getSeconds()).padStart(2, '0');
+                        occurrence.end = { dateTime: `${ey}-${em}-${ed}T${ehh}:${emm}:${ess}` };
+                    }
+                } else {
+                    // All-day event
+                    const y = occurrenceDate.getFullYear();
+                    const m = String(occurrenceDate.getMonth() + 1).padStart(2, '0');
+                    const d = String(occurrenceDate.getDate()).padStart(2, '0');
+                    occurrence.start = { date: `${y}-${m}-${d}` };
+                    
+                    if (duration > 0) {
+                        const endDate = new Date(occurrenceDate.getTime() + duration);
+                        const ey = endDate.getFullYear();
+                        const em = String(endDate.getMonth() + 1).padStart(2, '0');
+                        const ed = String(endDate.getDate()).padStart(2, '0');
+                        occurrence.end = { date: `${ey}-${em}-${ed}` };
+                    }
+                }
+                
+                expanded.push(occurrence);
+            }
+        } catch (e) {
+            console.warn('RRULE expansion error:', e.message);
+            return [baseEvent];
+        }
+        
+        return expanded.length > 0 ? expanded : [baseEvent];
     }
 
     _formatIcalDate(dateStr) {

@@ -198,10 +198,6 @@ function render(items, displayDays = 7) {
   today.setHours(0, 0, 0, 0);
   const todayKey = formatLocalDateKey(today);
   
-  // Include past events within 24 hours
-  const oneDayAgo = new Date(today);
-  oneDayAgo.setDate(today.getDate() - 1);
-  
   const groups = {};
   
   for (const ev of items) {
@@ -211,18 +207,16 @@ function render(items, displayDays = 7) {
     const eventDate = new Date(start);
     eventDate.setHours(0,0,0,0);
     
-    // Include past events (within 24 hrs) + today + future events
-    if (eventDate < oneDayAgo) continue;
+    // Only include events from today onwards
+    if (eventDate < today) continue;
     
     const key = formatLocalDateKey(start);
     groups[key] = groups[key] || [];
     groups[key].push({ ev, start });
   }
 
-
-
-  // Build display: show displayDays days starting from today (even if empty)
-  const displayDays_clamped = Math.max(1, Math.min(14, displayDays || 7));
+  // Build display: show displayDays days starting from TODAY
+  const displayDays_clamped = displayDays;
   const days = [];
   for (let i = 0; i < displayDays_clamped; i++) {
     const d = new Date(today);
@@ -365,7 +359,10 @@ async function load() {
   } catch (err) {
     console.error('load failed', err);
     setStatus('Failed to load events');
-    if (listEl) listEl.innerHTML = '<div class="no-events">Error loading events</div>';
+    if (listEl) {
+      const errorMsg = err ? err.toString() : 'Unknown error';
+      listEl.innerHTML = `<div class="no-events">Error: ${errorMsg}</div>`;
+    }
   }
 }
 

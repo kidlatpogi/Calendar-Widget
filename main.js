@@ -2,6 +2,11 @@ const { app, ipcMain, globalShortcut } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
+// Memory optimizations: disable GPU acceleration for lightweight widget
+app.disableHardwareAcceleration();
+// Reduce V8 memory usage
+app.commandLine.appendSwitch('v8-cache-options', 'none');
+
 // Import modular classes
 const ConfigManager = require('./lib/config-manager');
 const IcalProcessor = require('./lib/ical-processor');

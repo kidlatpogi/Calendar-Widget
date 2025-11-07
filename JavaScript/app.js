@@ -7,6 +7,53 @@ const homeBtn = document.getElementById('home-btn');
 // Prefer explicit placeholders in the controls grid if present
 const controlsEl = (document.getElementById('ct-placeholder') || document.getElementById('control-actions-bottom') || document.getElementById('control-actions'));
 
+// Object pool for DOM elements to reduce GC pressure during renders
+const domElementPool = {
+  divs: [],
+  spans: [],
+  textNodes: [],
+  
+  getDiv() {
+    if (this.divs.length > 0) {
+      const div = this.divs.pop();
+      div.className = '';
+      div.innerHTML = '';
+      div.style.cssText = '';
+      return div;
+    }
+    return document.createElement('div');
+  },
+  
+  putDiv(div) {
+    if (this.divs.length < 200) { // Pool max 200 divs
+      this.divs.push(div);
+    }
+  },
+  
+  getSpan() {
+    if (this.spans.length > 0) {
+      const span = this.spans.pop();
+      span.className = '';
+      span.textContent = '';
+      span.style.cssText = '';
+      return span;
+    }
+    return document.createElement('span');
+  },
+  
+  putSpan(span) {
+    if (this.spans.length < 200) { // Pool max 200 spans
+      this.spans.push(span);
+    }
+  },
+  
+  clearPool() {
+    this.divs = [];
+    this.spans = [];
+    this.textNodes = [];
+  }
+};
+
 // click-through toggle button (injected)
 let clickThroughEnabled = false;
 const ctBtn = document.createElement('button');
@@ -297,6 +344,9 @@ function render(items, displayDays = 7, config = null) {
   const now = new Date();
   const use12Hour = config?.ui?.clock12Hour === true;
   
+  // Clear old pool before rendering (allows GC of old elements)
+  domElementPool.clearPool();
+  
   // Use DocumentFragment for batch DOM operations (reduces reflows)
   const frag = document.createDocumentFragment();
   
@@ -304,26 +354,26 @@ function render(items, displayDays = 7, config = null) {
     const key = formatLocalDateKey(d);
     const isTodayKey = key === todayKey;
     
-    const dayDiv = document.createElement('div');
+    const dayDiv = domElementPool.getDiv();
     dayDiv.className = 'day';
     
     // Add clock for today if enabled - BEFORE the header
     if (isTodayKey) {
-      const clockDiv = document.createElement('div');
+      const clockDiv = domElementPool.getDiv();
       clockDiv.className = 'clock';
       clockDiv.dataset.clockElement = 'today';
       dayDiv.appendChild(clockDiv);
       updateClock(clockDiv);
     }
     
-  const headerDiv = document.createElement('div');
+  const headerDiv = domElementPool.getDiv();
   // Use a separate 'today' class to allow styling the header (day/date) separately
   headerDiv.className = 'day-header' + (isTodayKey ? ' today' : '');
   // Split into day name and date so colors can be applied separately
-  const dayName = document.createElement('span');
+  const dayName = domElementPool.getSpan();
   dayName.className = 'day-name';
   dayName.textContent = d.toLocaleDateString(undefined, { weekday: 'long' });
-  const dateSpan = document.createElement('span');
+  const dateSpan = domElementPool.getSpan();
   dateSpan.className = 'date';
   dateSpan.textContent = d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   headerDiv.appendChild(dayName);
@@ -334,7 +384,7 @@ function render(items, displayDays = 7, config = null) {
     
     if (group.length === 0) {
       // Show "No events" message for empty days
-      const noEvDiv = document.createElement('div');
+      const noEvDiv = domElementPool.getDiv();
       noEvDiv.className = 'no-events';
       noEvDiv.textContent = 'No events';
       dayDiv.appendChild(noEvDiv);
@@ -357,7 +407,7 @@ function render(items, displayDays = 7, config = null) {
           }
         }
         
-        const eventDiv = document.createElement('div');
+        const eventDiv = domElementPool.getDiv();
         eventDiv.className = 'event';
 
         // Determine event state: past, ongoing, or future
@@ -377,14 +427,14 @@ function render(items, displayDays = 7, config = null) {
         }
         
         if (timeText) {
-          const timeSpan = document.createElement('span');
+          const timeSpan = domElementPool.getSpan();
           timeSpan.className = 'time';
           timeSpan.textContent = timeText;
           eventDiv.appendChild(timeSpan);
           eventDiv.appendChild(document.createTextNode(' • '));
         }
         
-        const titleSpan = document.createElement('span');
+        const titleSpan = domElementPool.getSpan();
         titleSpan.className = 'title';
         titleSpan.textContent = ev.summary || 'No title';
         eventDiv.appendChild(titleSpan);

@@ -278,10 +278,19 @@ function render(items, displayDays = 7, config = null) {
   // Build display: show displayDays days starting from TODAY
   const displayDays_clamped = displayDays;
   const days = [];
+  
+  // Optimization: only render days with events (except today which always shows)
+  const daysWithEvents = new Set(Object.keys(groups));
+  daysWithEvents.add(todayKey); // Always show today
+  
   for (let i = 0; i < displayDays_clamped; i++) {
     const d = new Date(today);
     d.setDate(today.getDate() + i);
-    days.push(d);
+    const key = formatLocalDateKey(d);
+    // Only add day if it has events or is today
+    if (daysWithEvents.has(key)) {
+      days.push(d);
+    }
   }
   
   const now = new Date();
@@ -322,12 +331,13 @@ function render(items, displayDays = 7, config = null) {
     
     const group = groups[key] || [];
     
-    if (group.length === 0) {
+    if (group.length === 0 && isTodayKey) {
+      // Only show "No events" for today if there are no events
       const noEvDiv = document.createElement('div');
       noEvDiv.className = 'no-events';
       noEvDiv.textContent = 'No events';
       dayDiv.appendChild(noEvDiv);
-    } else {
+    } else if (group.length > 0) {
       group.sort((a,b)=> a.start - b.start);
       for (const g of group) {
         const ev = g.ev;

@@ -1,52 +1,56 @@
 {
-  "name": "schedule-widget-electron",
-  "version": "1.3.0",
-  "description": "",
-  "main": "main.js",
-  "scripts": {
-    "start": "electron .",
-    "predist": "node ./scripts/predist.js",
-    "dist": "electron-builder --win --x64",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "devDependencies": {
-    "electron": "^39.1.0",
-    "electron-builder": "^24.6.0"
-  },
-  "dependencies": {
-    "auto-launch": "^5.0.6"
-  },
-  "build": {
-    "asar": false,
-    "appId": "com.kidlatpogi.calendarwidget",
-    "productName": "Calendar Widget",
-    "directories": {
-      "buildResources": "assets",
-      "output": "dist"
-    },
-    "files": [
-      "**/*",
-      "!node_modules/electron-builder/**/*",
-      "!config.json",
-      "!.git/**/*",
-      "!dist/**/*",
-      "!*.md",
-      "!scripts/**/*",
-      "!.github/**/*",
-      "assets/default-config.json"
-    ],
-    "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        }
-      ]
-    }
-  }
+    "name":  "schedule-widget-electron",
+    "version":  "1.3.2",
+    "description":  "",
+    "main":  "main.js",
+    "scripts":  {
+                    "start":  "electron .",
+                    "predist":  "node ./scripts/predist.js",
+                    "dist":  "electron-builder --win --x64",
+                    "test":  "echo \"Error: no test specified\" \u0026\u0026 exit 1"
+                },
+    "keywords":  [
+
+                 ],
+    "author":  "",
+    "license":  "ISC",
+    "devDependencies":  {
+                            "electron":  "^39.1.0",
+                            "electron-builder":  "^24.6.0"
+                        },
+    "dependencies":  {
+                         "auto-launch":  "^5.0.6"
+                     },
+    "build":  {
+                  "asar":  false,
+                  "appId":  "com.kidlatpogi.calendarwidget",
+                  "productName":  "Calendar Widget",
+                  "directories":  {
+                                      "buildResources":  "assets",
+                                      "output":  "dist"
+                                  },
+                  "files":  [
+                                "main.js",
+                                "preload.js",
+                                "package.json",
+                                "HTML/**/*",
+                                "CSS/**/*",
+                                "JavaScript/**/*",
+                                "lib/**/*",
+                                "assets/**/*",
+                                "!.venv/**/*",
+                                "!**/*.md",
+                                "!**/node_modules/electron-builder/**/*"
+                            ],
+                  "win":  {
+                              "target":  [
+                                             {
+                                                 "target":  "nsis",
+                                                 "arch":  [
+                                                              "x64"
+                                                          ]
+                                             }
+                                         ]
+                          }
+              }
 }

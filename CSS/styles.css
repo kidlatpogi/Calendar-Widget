@@ -1,4 +1,14 @@
 /* Transparent background - BrowserWindow in Electron must set transparent:true */
+
+/* Jersey 10 font - loaded from Google Fonts when applied via settings */
+@font-face {
+  font-family: 'Jersey 10';
+  src: url('https://fonts.gstatic.com/s/jersey10/v2/wXKvE3UZeePuFYVz7-LY6H0UF-cQGJxV.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --app-font-family: "Segoe UI", SegoeUI, Arial, sans-serif;
   --app-font-size: 13px;
@@ -24,8 +34,10 @@ html,body{
   height:100%;
   margin:0;
   background:transparent;
-  font-family: var(--app-font-family);
+  font-family: "Segoe UI", var(--app-font-family);
   font-size: var(--app-font-size);
+  font-weight: 400;
+  font-style: normal;
   overflow:hidden;
   pointer-events: none;
 }

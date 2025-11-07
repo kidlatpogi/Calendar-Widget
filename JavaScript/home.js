@@ -1,4 +1,5 @@
-document.addEventListener('DOMContentLoaded', async () => {
+// Initialize home window settings - can be called multiple times (idempotent)
+async function initializeHomeSettings() {
     class SettingsManager {
       constructor() {
         this.config = null;
@@ -318,4 +319,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Initialize app on DOMContentLoaded
     const app = new AppController();
     await app.init();
-});
+}
+
+// Start initialization immediately if DOM is ready, or wait for DOMContentLoaded
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeHomeSettings);
+} else {
+  // DOM already loaded (happens with dynamic script loading)
+  initializeHomeSettings().catch(err => console.error('Error initializing home settings:', err));
+}

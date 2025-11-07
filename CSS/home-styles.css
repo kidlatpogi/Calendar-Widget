@@ -3,9 +3,18 @@
    Keep class hooks used by JS: .hidden, .modal, #wrap, .view, .card, buttons, inputs
 */
 
+/* Jersey 10 font - loaded from Google Fonts when applied via settings */
+@font-face {
+  font-family: 'Jersey 10';
+  src: url('https://fonts.gstatic.com/s/jersey10/v2/wXKvE3UZeePuFYVz7-LY6H0UF-cQGJxV.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* Reset basics */
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial; }
+html, body { height: 100%; font-family: "Segoe UI", system-ui, -apple-system, 'Segoe UI', Roboto, Arial; font-weight: 400; font-style: normal; }
 body { display: flex; align-items: center; justify-content: center; background: #111; color: #eee; }
 
 /* App wrapper */

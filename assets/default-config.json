@@ -10,7 +10,8 @@
     "dateTimeColor": "#cfe9ff",
     "highlightColor": "#a3ff33",
     "dayColor": "#ffffff",
-    "dateColor": "#cfe9ff"
+    "dateColor": "#cfe9ff",
+    "dateSpacing": 16
   },
   "acceptedTerms": false,
   "windowBounds": {},

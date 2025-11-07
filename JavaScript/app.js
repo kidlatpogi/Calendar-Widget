@@ -432,6 +432,7 @@ async function applyUiFromConfig(cfg) {
   }
   if (ui.dayColor) root.style.setProperty('--day-color', ui.dayColor);
   if (ui.dateColor) root.style.setProperty('--date-color', ui.dateColor);
+  if (ui.dateSpacing) root.style.setProperty('--date-spacing', ui.dateSpacing + 'px');
   } catch (e) { /* ignore */ }
 }
 

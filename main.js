@@ -358,14 +358,25 @@ class WindowManager {
   }
 
   createHomeWindow() {
+    // Get screen dimensions for responsive sizing
+    const { screen } = require('electron');
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+    
+    // Use 90% of screen width/height, with max sizes for larger screens
+    const windowWidth = Math.min(1200, Math.floor(screenWidth * 0.9));
+    const windowHeight = Math.min(700, Math.floor(screenHeight * 0.85));
+    
     this.homeWin = new BrowserWindow({
-      width: 340,
-      height: 400,
+      width: windowWidth,
+      height: windowHeight,
+      minWidth: 400,
+      minHeight: 500,
       // Use native frame for home window as well
       transparent: false,
       frame: true,
       alwaysOnTop: false,
-      skipTaskbar: true,
+      skipTaskbar: false,
       autoHideMenuBar: true,
       webPreferences: { preload: path.join(__dirname, 'preload.js'), nodeIntegration: false }
     });

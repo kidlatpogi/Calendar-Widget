@@ -77,6 +77,15 @@ That’s how this widget was born.
 
 ---
 
+### 🕰️ Clock
+> - Adjustable Font Size
+> - Adjsutable Text Size
+> - 24h and 12h Time Format
+
+ <img src="assets/Clock.webp" width="300">
+
+---
+
 ### 🖼️ Previews
 
 <div align="center">

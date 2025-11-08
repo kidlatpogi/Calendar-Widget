@@ -1,7 +1,11 @@
-# 🗓️ Calendar Widget
+# 🗓️ Calendar Widget 
 
 A sleek and lightweight **Windows Calendar Widget** seamlessly connected to **Google Calendar** — without relying on any external databases or APIs.  
 >All your data stays **private** and **securely stored locally**.
+
+<a href="https://www.buymeacoffee.com/kidlatpogi" target="_blank">
+    <img src="https://cdn.buymeacoffee.com/buttons/v2/default-orange.png" alt="Buy Me A Coffee" style="height: 35px !important;">
+</a>
 
 ---
 ### 📦 Download

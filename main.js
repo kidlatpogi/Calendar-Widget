@@ -65,6 +65,49 @@ try {
   });
 } catch (e) { /* ignore if handler already exists */ }
 
+// Fallback IPC handler for remove-ical: register early so renderers can call it
+// even if the WindowManager hasn't finished setting up handlers yet.
+try {
+  ipcMain.handle('remove-ical', async (ev, url) => {
+    try {
+      if (!url || typeof url !== 'string') throw new Error('Invalid URL');
+      if (!cfgManager) return { ok: false, error: 'Config manager not ready' };
+      const cfg = cfgManager.config;
+      cfg.icals = (cfg.icals || []).filter(i => {
+        const u = (typeof i === 'string') ? i : (i.url || '');
+        return u !== url;
+      });
+      cfgManager.saveConfig();
+
+      // Let processor attempt to free any in-memory metadata
+      try { if (icalProcessor && typeof icalProcessor.clearCacheForUrl === 'function') icalProcessor.clearCacheForUrl(url); } catch (e) {}
+
+      // Notify windows if available
+      try { if (windowManager && windowManager.win && !windowManager.win.isDestroyed()) { windowManager.win.webContents.send('refresh-events'); windowManager.win.webContents.send('perform-memory-clean'); } } catch (e) {}
+      try { if (windowManager && windowManager.homeWin && !windowManager.homeWin.isDestroyed()) { windowManager.homeWin.webContents.send('refresh-events'); windowManager.homeWin.webContents.send('perform-memory-clean'); } } catch (e) {}
+
+      return { ok: true, icals: cfg.icals };
+    } catch (e) {
+      return { ok: false, error: String(e) };
+    }
+  });
+} catch (e) { /* ignore if already registered */ }
+
+// Fallback handler for request-main-gc so renderers can call it before WindowManager sets handlers
+try {
+  ipcMain.handle('request-main-gc', async () => {
+    try {
+      if (typeof global.gc === 'function') {
+        try { global.gc(); } catch (e) {}
+        return { ok: true };
+      }
+      return { ok: false, error: 'global.gc not available' };
+    } catch (e) {
+      return { ok: false, error: String(e) };
+    }
+  });
+} catch (e) { /* ignore if already registered */ }
+
 // --- Application Initialization ---
 
 app.whenReady().then(() => {

@@ -31,6 +31,8 @@ async function initializeHomeSettings() {
         document.getElementById('main-menu')?.classList.add('hidden');
         document.getElementById('settings')?.classList.add('hidden');
         document.getElementById('add-ical-view')?.classList.add('hidden');
+        // Ensure manage-calendars view is hidden when switching views
+        document.getElementById('manage-calendars')?.classList.add('hidden');
         // Also ensure terms modal is hidden when switching views
         document.getElementById('terms-modal')?.classList.add('hidden');
       }
@@ -116,6 +118,7 @@ async function initializeHomeSettings() {
   document.getElementById('mark-done-method').value = ui.markDoneMethod || 'right-click';
   document.getElementById('show-completed-events').checked = ui.showCompletedEvents !== false;
   document.getElementById('show-empty-days').checked = ui.showEmptyDays !== false;
+  document.getElementById('auto-clear-on-refresh').checked = ui.autoClearOnRefresh === true;
       }
     
       setupEventListeners() {
@@ -131,15 +134,54 @@ async function initializeHomeSettings() {
         
         // Navigation
         document.getElementById('settings-btn')?.addEventListener('click', () => this.viewManager.show('settings'));
+<<<<<<< HEAD
         document.getElementById('add-ical-btn')?.addEventListener('click', () => {
           this.viewManager.show('add-ical-view');
           this.renderCalendarsList(); // Render calendars list when opening the view
         });
+=======
+        document.getElementById('add-ical-btn')?.addEventListener('click', () => this.viewManager.show('add-ical-view'));
+        // Manage Calendars
+        // Create a 'Manage' button in main menu if not present
+        let manageBtn = document.getElementById('manage-calendars-btn');
+        if (!manageBtn) {
+          // Insert a visible Manage Calendars button into the main menu
+          manageBtn = document.createElement('button');
+          manageBtn.id = 'manage-calendars-btn';
+          manageBtn.type = 'button';
+          manageBtn.textContent = 'Manage Calendars';
+          manageBtn.className = 'primary';
+          const mm = document.getElementById('main-menu');
+          if (mm) mm.appendChild(manageBtn);
+        }
+        manageBtn.addEventListener('click', async () => {
+          try {
+            this.viewManager.show('manage-calendars');
+            // Populate list once the view is visible
+            try { await this.populateCalendarList(); } catch (e) { /* ignore */ }
+          } catch (e) { console.error('manage btn click failed', e); }
+        });
+        document.getElementById('back-from-manage')?.addEventListener('click', () => this.viewManager.show('main-menu'));
+>>>>>>> origin/main
         document.getElementById('back-to-main')?.addEventListener('click', () => this.viewManager.show('main-menu'));
-        
-        // Open Calendar
-        document.getElementById('open-main')?.addEventListener('click', () => this.openCalendar());
-        
+            document.getElementById('add-ical-btn')?.addEventListener('click', () => this.viewManager.show('add-ical-view'));
+            // Manage Calendars: ensure a Manage button exists in main menu to open the list
+            let manageBtn = document.getElementById('manage-calendars-btn');
+            if (!manageBtn) {
+              manageBtn = document.createElement('button');
+              manageBtn.id = 'manage-calendars-btn';
+              manageBtn.type = 'button';
+              manageBtn.textContent = 'Manage Calendars';
+              manageBtn.className = 'primary';
+              const mm = document.getElementById('main-menu');
+              if (mm) mm.appendChild(manageBtn);
+            }
+            if (manageBtn) {
+              manageBtn.addEventListener('click', () => {
+                this.viewManager.show('manage-calendars');
+                this.renderCalendarsList(); // Ensure the calendars list is rendered
+              });
+            }
         // Settings Actions
         document.getElementById('save-settings')?.addEventListener('click', () => this.saveSettings());
         
@@ -191,6 +233,22 @@ async function initializeHomeSettings() {
             if (!ok) alert('Unable to open tutorial PDF.');
           } catch (e) {
             alert('Failed to open tutorial: ' + e.message);
+          }
+        });
+        // Debug: clear memory button wiring (if present)
+        document.getElementById('dbg-clear-memory')?.addEventListener('click', async () => {
+          try {
+            const resEl = document.getElementById('dbg-clear-result');
+            if (resEl) resEl.textContent = 'Clearing...';
+            const r = await window.electronAPI.clearMemory();
+            if (r && r.ok) {
+              if (resEl) resEl.textContent = 'Memory cleared (main+renderer notified)';
+            } else {
+              if (resEl) resEl.textContent = 'Error: ' + (r && r.error ? r.error : 'unknown');
+            }
+          } catch (e) {
+            const resEl = document.getElementById('dbg-clear-result');
+            if (resEl) resEl.textContent = 'Failed: ' + e.message;
           }
         });
         
@@ -336,6 +394,72 @@ async function initializeHomeSettings() {
           alert('Failed to delete calendar: ' + e.message);
         }
       }
+
+      // Populate calendar list in Manage view
+      async populateCalendarList() {
+        try {
+          const cfg = await window.electronAPI.listConfig();
+          const list = document.getElementById('cal-list');
+          if (!list) return;
+          list.innerHTML = '';
+          const icals = Array.isArray(cfg.icals) ? cfg.icals : [];
+          if (icals.length === 0) {
+            list.innerHTML = '<div class="no-events">No calendars added</div>';
+            return;
+          }
+          let idx = 1;
+          for (const it of icals) {
+            const url = (typeof it === 'string') ? it : (it.url || '');
+            const row = document.createElement('div');
+            row.style.display = 'flex';
+            row.style.justifyContent = 'space-between';
+            row.style.alignItems = 'center';
+            row.style.padding = '6px 4px';
+            const txt = document.createElement('div');
+            // Mask the URL for privacy: show hostname + short label, full URL in tooltip
+            let label = url;
+            try {
+              const u = new URL(url);
+              const pathParts = u.pathname.split('/').filter(Boolean);
+              const last = pathParts.length > 0 ? pathParts[pathParts.length-1] : '';
+              label = `${u.hostname}${last ? ' / ' + last : ''} (${idx})`;
+            } catch (e) {
+              // fallback to short display
+              label = (url.length > 40) ? url.slice(0, 28) + '…' + url.slice(-8) : url;
+            }
+            txt.textContent = label;
+            txt.title = url; // full URL on hover
+            txt.style.flex = '1';
+            // Force single-line truncation to avoid vertical char stacking
+            txt.style.whiteSpace = 'nowrap';
+            txt.style.overflow = 'hidden';
+            txt.style.textOverflow = 'ellipsis';
+            txt.style.wordBreak = 'normal';
+            const del = document.createElement('button');
+            del.textContent = 'Delete';
+            del.style.marginLeft = '8px';
+            del.className = 'secondary';
+            del.addEventListener('click', async () => {
+              if (!confirm('Delete this calendar? This will remove it from the app.')) return;
+              try {
+                const res = await window.electronAPI.removeIcal(url);
+                if (res && res.ok) {
+                  row.remove();
+                  // Also request renderer cleanup (main process already triggers refresh+cleanup)
+                } else {
+                  alert('Failed to remove calendar: ' + (res && res.error ? res.error : 'unknown'));
+                }
+              } catch (e) {
+                alert('Failed to remove calendar: ' + e.message);
+              }
+            });
+            row.appendChild(txt);
+            row.appendChild(del);
+            list.appendChild(row);
+            idx++;
+          }
+        } catch (e) { /* ignore */ }
+      }
     
       async saveSettings() {
         try {
@@ -362,6 +486,7 @@ async function initializeHomeSettings() {
             ,markDoneMethod: document.getElementById('mark-done-method').value
             ,showCompletedEvents: document.getElementById('show-completed-events').checked
             ,showEmptyDays: document.getElementById('show-empty-days').checked
+            ,autoClearOnRefresh: document.getElementById('auto-clear-on-refresh').checked
           };
     
           await this.settingsManager.saveSettings(settings);

@@ -91,26 +91,22 @@ const collapseSlot = document.getElementById('collapse-placeholder');
 if (collapseSlot) collapseSlot.appendChild(collapseBtn); else if (controlsEl) controlsEl.appendChild(collapseBtn); else document.body.appendChild(collapseBtn);
 
 // restore state from localStorage if present
-try { collapsed = localStorage.getItem('cw.collapsed') === '1'; } catch (e) { collapsed = false; }
-function applyCollapsedState(invokedByKeyboard = false) {
+function applyCollapsedState(isCollapsed, invokedByKeyboard = false) {
   try {
     const appEl = document.getElementById('app');
     if (!appEl) return;
-    if (collapsed) appEl.classList.add('collapsed'); else appEl.classList.remove('collapsed');
-    collapseBtn.textContent = collapsed ? '▸' : '▾';
-    try { localStorage.setItem('cw.collapsed', collapsed ? '1' : '0'); } catch (e) {}
-    // Persist collapsed state in config.json so it survives restarts
-    try {
-      if (window.electronAPI && window.electronAPI.setConfig) {
-        window.electronAPI.setConfig({ ui: { collapsed: !!collapsed } }).catch(() => {});
-      }
-    } catch (e) { /* ignore */ }
+    if (isCollapsed) appEl.classList.add('collapsed'); else appEl.classList.remove('collapsed');
+    collapseBtn.textContent = isCollapsed ? '▸' : '▾';
+    collapsed = isCollapsed; // Update global state
     // show a short left-anchored tip indicating collapsed state only when invoked by keyboard
-    try { if (collapsed && invokedByKeyboard && typeof showLeftTip === 'function') showLeftTip('Ctrl+Shift+M to uncollapse', 2000); } catch (e) {}
+    try { if (isCollapsed && invokedByKeyboard && typeof showLeftTip === 'function') showLeftTip('Ctrl+Shift+M to uncollapse', 2000); } catch (e) {}
   } catch (e) { /* ignore */ }
 }
-collapseBtn.addEventListener('click', () => { collapsed = !collapsed; applyCollapsedState(); });
-applyCollapsedState();
+
+collapseBtn.addEventListener('click', () => {
+  // When button is clicked, just send a toggle request to main process.
+  window.electronAPI.onToggleCollapse();
+});
 
 // Toast helper
 function showToast(text, ms = 1800) {
@@ -141,8 +137,7 @@ window.addEventListener('keydown', (ev) => {
   try {
     if (ev.ctrlKey && ev.shiftKey && (ev.key === 'M' || ev.key === 'm')) {
       ev.preventDefault();
-      collapsed = !collapsed;
-      applyCollapsedState(true);
+      window.electronAPI.onToggleCollapse(); // Ask main process to toggle
     }
   } catch (e) { /* ignore */ }
 });
@@ -175,8 +170,7 @@ try {
       uncollapseBtn.addEventListener('click', (ev) => {
         try {
           ev.stopPropagation();
-          collapsed = false;
-          applyCollapsedState();
+          window.electronAPI.onToggleCollapse(); // Ask main process to toggle
         } catch (e) { /* ignore */ }
       });
       dragBarEl.appendChild(uncollapseBtn);
@@ -799,7 +793,12 @@ async function applyUiFromConfig(cfg) {
   } catch (e) { /* ignore */ }
 }
 
-if (refreshBtn) refreshBtn.addEventListener('click', load);
+if (refreshBtn) {
+  refreshBtn.addEventListener('click', () => {
+    // The load function handles showing status, fetching, and rendering.
+    load();
+  });
+}
 if (homeBtn) homeBtn.addEventListener('click', async () => {
   try { await window.electronAPI.openHome(); }
   catch (e) { setStatus('Failed to open welcome'); }
@@ -933,6 +932,10 @@ window.addEventListener('DOMContentLoaded', async () => {
           await window.electronAPI.setClickThrough('main', clickThroughEnabled);
         }
       }
+      // Apply collapsed state from config
+      if (cfg.ui && typeof cfg.ui.collapsed === 'boolean') {
+        applyCollapsedState(!!cfg.ui.collapsed);
+      }
     }
   } catch (e) { /* ignore */ }
 
@@ -947,16 +950,22 @@ window.addEventListener('DOMContentLoaded', async () => {
           clickThroughEnabled = next;
           if (ctBtn) ctBtn.textContent = 'Click-through: ' + (clickThroughEnabled ? 'On' : 'Off');
         }
+        // Sync collapsed state
+        if (cfg && cfg.ui && typeof cfg.ui.collapsed === 'boolean') {
+          applyCollapsedState(!!cfg.ui.collapsed);
+        }
         if (typeof load === 'function') load();
       } catch (e) { /* ignore */ }
     });
   }
 
-  // Listen for toggle-collapse sent from main via global shortcut
+  // Listen for toggle-collapse sent from main via global shortcut or tray
   try {
     if (window.electronAPI && window.electronAPI.onToggleCollapse) {
-      window.electronAPI.onToggleCollapse(() => {
-        try { collapsed = !collapsed; applyCollapsedState(); } catch (e) { /* ignore */ }
+      window.electronAPI.onToggleCollapse(async () => {
+        // Main process is the source of truth. When it says toggle, we toggle.
+        collapsed = !collapsed;
+        applyCollapsedState(collapsed);
       });
     }
   } catch (e) { /* ignore */ }

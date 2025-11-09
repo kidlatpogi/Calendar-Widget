@@ -25,7 +25,8 @@ const domElementPool = {
   },
   
   putDiv(div) {
-    if (this.divs.length < 200) { // Pool max 200 divs
+    // Keep a smaller pool to avoid holding too many detached elements in memory
+    if (this.divs.length < 120) { // Pool max 120 divs
       this.divs.push(div);
     }
   },
@@ -42,7 +43,8 @@ const domElementPool = {
   },
   
   putSpan(span) {
-    if (this.spans.length < 200) { // Pool max 200 spans
+    // Keep a smaller pool to avoid holding too many detached elements in memory
+    if (this.spans.length < 120) { // Pool max 120 spans
       this.spans.push(span);
     }
   },
@@ -613,9 +615,11 @@ function toggleEventDone(eventDiv, eventId) {
 function applyCompletedEventStyles() {
   window.electronAPI.getConfig().then(config => {
     if (!config.completedEvents) return;
-    
+    // Collect currently rendered event IDs
+    const currentIds = new Set();
     document.querySelectorAll('.event').forEach(eventDiv => {
       const eventId = eventDiv.dataset.eventId;
+      if (eventId) currentIds.add(eventId);
       if (config.completedEvents[eventId]) {
         eventDiv.classList.add('completed');
       }
@@ -634,6 +638,19 @@ function applyCompletedEventStyles() {
         eventDiv.classList.remove('hidden');
       }
     });
+
+    // Remove any completedEvents entries that no longer correspond to rendered events
+    let removed = false;
+    for (const k of Object.keys(config.completedEvents)) {
+      if (!currentIds.has(k)) {
+        delete config.completedEvents[k];
+        removed = true;
+      }
+    }
+    // Persist config if we removed stale entries
+    if (removed) {
+      window.electronAPI.saveConfig(config).catch(() => {});
+    }
   });
 }
 

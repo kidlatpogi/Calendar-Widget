@@ -799,7 +799,22 @@ async function applyUiFromConfig(cfg) {
   } catch (e) { /* ignore */ }
 }
 
-if (refreshBtn) refreshBtn.addEventListener('click', load);
+if (refreshBtn) refreshBtn.addEventListener('click', async () => {
+  try {
+    // Check config for autoClearOnRefresh
+    const cfg = await window.electronAPI.listConfig();
+    const doClear = cfg?.ui?.autoClearOnRefresh === true;
+    if (doClear) {
+      // Clear renderer pools first
+      try { if (domElementPool) domElementPool.clearPool(); } catch (e) {}
+      // Request main GC (best-effort)
+      try { await window.electronAPI.requestMainGC(); } catch (e) {}
+    }
+    await load();
+  } catch (e) {
+    try { await load(); } catch (ee) { /* ignore */ }
+  }
+});
 if (homeBtn) homeBtn.addEventListener('click', async () => {
   try { await window.electronAPI.openHome(); }
   catch (e) { setStatus('Failed to open welcome'); }
@@ -1059,3 +1074,17 @@ function showLeftTip(text, ms = 2000) {
     }, ms);
   } catch (e) { /* ignore */ }
 }
+
+// Listen for memory-clean requests from main and perform lightweight cleanup
+// React to perform-memory-clean from main via preload-exposed listener
+try {
+  if (window && window.electronAPI && typeof window.electronAPI.onPerformMemoryClean === 'function') {
+    window.electronAPI.onPerformMemoryClean(() => {
+      try {
+        if (domElementPool) domElementPool.clearPool();
+        try { if (typeof window.gc === 'function') window.gc(); } catch (e) {}
+        try { load(); } catch (e) { /* ignore */ }
+      } catch (e) { /* ignore */ }
+    });
+  }
+} catch (e) { /* ignore */ }

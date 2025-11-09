@@ -131,7 +131,10 @@ async function initializeHomeSettings() {
         
         // Navigation
         document.getElementById('settings-btn')?.addEventListener('click', () => this.viewManager.show('settings'));
-        document.getElementById('add-ical-btn')?.addEventListener('click', () => this.viewManager.show('add-ical-view'));
+        document.getElementById('add-ical-btn')?.addEventListener('click', () => {
+          this.viewManager.show('add-ical-view');
+          this.renderCalendarsList(); // Render calendars list when opening the view
+        });
         document.getElementById('back-to-main')?.addEventListener('click', () => this.viewManager.show('main-menu'));
         
         // Open Calendar
@@ -257,6 +260,80 @@ async function initializeHomeSettings() {
           alert('Failed to add calendar: ' + e.message);
           btn.disabled = false;
           btn.textContent = 'Add';
+        }
+        
+        // Refresh the calendars list after adding
+        this.renderCalendarsList();
+      }
+      
+      async renderCalendarsList() {
+        try {
+          const config = await window.electronAPI.getConfig();
+          const container = document.getElementById('calendars-container');
+          if (!container) return;
+          
+          if (!config.icals || config.icals.length === 0) {
+            container.innerHTML = '<p style="color: #aaa; font-size: 12px;">No calendars added yet</p>';
+            return;
+          }
+          
+          container.innerHTML = config.icals.map((ical, index) => {
+            const dateAdded = ical._lastChecked ? new Date(ical._lastChecked).toLocaleDateString() : 'Unknown';
+            return `
+              <div style="margin-bottom: 12px; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                <div style="font-size: 11px; color: #aaa; margin-bottom: 4px; word-break: break-all;">
+                  <strong>URL:</strong> ${ical.url.substring(0, 60)}...
+                </div>
+                <div style="font-size: 11px; color: #aaa; margin-bottom: 8px;">
+                  <strong>Date Added:</strong> ${dateAdded}
+                </div>
+                <button class="delete-calendar-btn" data-index="${index}" style="padding: 4px 8px; font-size: 11px; background: rgba(255, 50, 50, 0.2); border-color: rgba(255, 50, 50, 0.4); color: #ff6b6b;">
+                  Delete Calendar
+                </button>
+              </div>
+            `;
+          }).join('');
+          
+          // Add event listeners to delete buttons
+          document.querySelectorAll('.delete-calendar-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+              const index = parseInt(e.target.dataset.index);
+              this.deleteCalendar(index);
+            });
+          });
+        } catch (e) {
+          console.error('Failed to render calendars list', e);
+        }
+      }
+      
+      async deleteCalendar(index) {
+        if (!confirm('Are you sure you want to delete this calendar?')) {
+          return;
+        }
+        
+        try {
+          const config = await window.electronAPI.getConfig();
+          if (config.icals && config.icals[index]) {
+            config.icals.splice(index, 1);
+            await window.electronAPI.saveConfig(config);
+            
+            // Show success message
+            const status = document.getElementById('status');
+            if (status) {
+              status.textContent = '✓ Calendar deleted!';
+              status.classList.remove('error');
+              status.classList.add('success');
+              setTimeout(() => {
+                status.textContent = '';
+                status.classList.remove('success');
+              }, 2000);
+            }
+            
+            // Refresh the list
+            this.renderCalendarsList();
+          }
+        } catch (e) {
+          alert('Failed to delete calendar: ' + e.message);
         }
       }
     

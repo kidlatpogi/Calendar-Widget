@@ -30,7 +30,7 @@ function ensureUserConfigExists() {
           try { fs.mkdirSync(userCfgDir, { recursive: true }); } catch (e) {}
           fs.copyFileSync(packagedDefaultCfg, cfgPath);
         } catch (e) {
-          console.warn('Failed to copy packaged default config to userData', e);
+          // ignore copy errors
         }
       } else {
         // Write a sensible minimal default
@@ -40,7 +40,7 @@ function ensureUserConfigExists() {
       }
     }
   } catch (e) {
-    console.warn('ensureUserConfigExists failed', e);
+    // ignore
   }
 }
 
@@ -59,7 +59,7 @@ try {
       bw.setIgnoreMouseEvents(!!enabled, { forward: true });
       return true;
     } catch (e) {
-      console.error('fallback set-click-through failed', e);
+      // fallback failed
       return false;
     }
   });
@@ -83,7 +83,7 @@ app.whenReady().then(() => {
       Menu.setApplicationMenu(null);
     }
   } catch (e) {
-    console.warn('Failed to clear application menu', e);
+    // ignore menu clear errors
   }
   
   // Initialize managers
@@ -120,10 +120,10 @@ app.whenReady().then(() => {
   // Register a global shortcut to toggle click-through quickly (Ctrl+Shift+C)
   try {
     globalShortcut.register('Control+Shift+C', () => {
-      try { windowManager.toggleClickThrough(); } catch (e) { console.error(e); }
+      try { windowManager.toggleClickThrough(); } catch (e) { /* ignore */ }
     });
   } catch (e) {
-    console.warn('Failed to register global shortcut', e);
+    // ignore global shortcut registration failures
   }
 });
 

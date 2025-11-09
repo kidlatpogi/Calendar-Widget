@@ -83,7 +83,7 @@ async function initializeHomeSettings() {
           this.loadSettingsUI();
           this.setupEventListeners();
         } catch (e) {
-          console.error('Init failed', e);
+            // Init failed - silenced
           this.viewManager.show('after');
         }
       }
@@ -222,7 +222,7 @@ async function initializeHomeSettings() {
             btn.textContent = 'Open Calendar';
           }, 1000);
         } catch (e) {
-          console.error('Failed to open calendar', e);
+            // Failed to open calendar - silenced
           btn.disabled = false;
           btn.textContent = 'Open Calendar';
         }
@@ -302,7 +302,7 @@ async function initializeHomeSettings() {
             });
           });
         } catch (e) {
-          console.error('Failed to render calendars list', e);
+            // Failed to render calendars list - silenced
         }
       }
       
@@ -379,7 +379,7 @@ async function initializeHomeSettings() {
             setTimeout(() => { try { status.textContent = ''; status.classList.remove('success'); } catch (e) {} }, 1800);
           }
         } catch (e) {
-          console.error('[saveSettings] error:', e);
+            // [saveSettings] error - silenced
           alert('Failed to save settings: ' + e.message);
         }
       }
@@ -403,5 +403,5 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initializeHomeSettings);
 } else {
   // DOM already loaded (happens with dynamic script loading)
-  initializeHomeSettings().catch(err => console.error('Error initializing home settings:', err));
+  initializeHomeSettings().catch(err => { /* Error initializing home settings - silenced */ });
 }

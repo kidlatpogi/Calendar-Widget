@@ -12,11 +12,11 @@ function loadHomeScript() {
     script.async = true;
     script.onload = () => {
       homeJsLoaded = true;
-      console.log('[home-init] home.js loaded successfully');
+  // home.js loaded successfully (silenced)
       resolve();
     };
     script.onerror = (err) => {
-      console.error('[home-init] Failed to load home.js:', err);
+  // Failed to load home.js - silenced
       reject(err);
     };
     document.head.appendChild(script);
@@ -30,7 +30,7 @@ window.initializeHomeWindow = function() {
     return new Promise((resolve) => {
       document.addEventListener('DOMContentLoaded', () => {
         loadHomeScript().then(resolve).catch((err) => {
-          console.error('[home-init] Error initializing home window:', err);
+          // Error initializing home window - silenced
           resolve(); // Still resolve to avoid blocking
         });
       });
@@ -38,10 +38,10 @@ window.initializeHomeWindow = function() {
   } else {
     // DOM already loaded
     return loadHomeScript().catch((err) => {
-      console.error('[home-init] Error initializing home window:', err);
+  // Error initializing home window - silenced
       return Promise.resolve(); // Don't throw
     });
   }
 };
 
-console.log('[home-init] Home window lazy loader ready');
+// Home window lazy loader ready (silenced)

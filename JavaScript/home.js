@@ -85,7 +85,7 @@ async function initializeHomeSettings() {
           this.loadSettingsUI();
           this.setupEventListeners();
         } catch (e) {
-          console.error('Init failed', e);
+            // Init failed - silenced
           this.viewManager.show('after');
         }
       }
@@ -134,6 +134,12 @@ async function initializeHomeSettings() {
         
         // Navigation
         document.getElementById('settings-btn')?.addEventListener('click', () => this.viewManager.show('settings'));
+<<<<<<< HEAD
+        document.getElementById('add-ical-btn')?.addEventListener('click', () => {
+          this.viewManager.show('add-ical-view');
+          this.renderCalendarsList(); // Render calendars list when opening the view
+        });
+=======
         document.getElementById('add-ical-btn')?.addEventListener('click', () => this.viewManager.show('add-ical-view'));
         // Manage Calendars
         // Create a 'Manage' button in main menu if not present
@@ -156,11 +162,26 @@ async function initializeHomeSettings() {
           } catch (e) { console.error('manage btn click failed', e); }
         });
         document.getElementById('back-from-manage')?.addEventListener('click', () => this.viewManager.show('main-menu'));
+>>>>>>> origin/main
         document.getElementById('back-to-main')?.addEventListener('click', () => this.viewManager.show('main-menu'));
-        
-        // Open Calendar
-        document.getElementById('open-main')?.addEventListener('click', () => this.openCalendar());
-        
+            document.getElementById('add-ical-btn')?.addEventListener('click', () => this.viewManager.show('add-ical-view'));
+            // Manage Calendars: ensure a Manage button exists in main menu to open the list
+            let manageBtn = document.getElementById('manage-calendars-btn');
+            if (!manageBtn) {
+              manageBtn = document.createElement('button');
+              manageBtn.id = 'manage-calendars-btn';
+              manageBtn.type = 'button';
+              manageBtn.textContent = 'Manage Calendars';
+              manageBtn.className = 'primary';
+              const mm = document.getElementById('main-menu');
+              if (mm) mm.appendChild(manageBtn);
+            }
+            if (manageBtn) {
+              manageBtn.addEventListener('click', () => {
+                this.viewManager.show('manage-calendars');
+                this.renderCalendarsList(); // Ensure the calendars list is rendered
+              });
+            }
         // Settings Actions
         document.getElementById('save-settings')?.addEventListener('click', () => this.saveSettings());
         
@@ -259,7 +280,7 @@ async function initializeHomeSettings() {
             btn.textContent = 'Open Calendar';
           }, 1000);
         } catch (e) {
-          console.error('Failed to open calendar', e);
+            // Failed to open calendar - silenced
           btn.disabled = false;
           btn.textContent = 'Open Calendar';
         }
@@ -297,6 +318,80 @@ async function initializeHomeSettings() {
           alert('Failed to add calendar: ' + e.message);
           btn.disabled = false;
           btn.textContent = 'Add';
+        }
+        
+        // Refresh the calendars list after adding
+        this.renderCalendarsList();
+      }
+      
+      async renderCalendarsList() {
+        try {
+          const config = await window.electronAPI.getConfig();
+          const container = document.getElementById('calendars-container');
+          if (!container) return;
+          
+          if (!config.icals || config.icals.length === 0) {
+            container.innerHTML = '<p style="color: #aaa; font-size: 12px;">No calendars added yet</p>';
+            return;
+          }
+          
+          container.innerHTML = config.icals.map((ical, index) => {
+            const dateAdded = ical._lastChecked ? new Date(ical._lastChecked).toLocaleDateString() : 'Unknown';
+            return `
+              <div style="margin-bottom: 12px; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                <div style="font-size: 11px; color: #aaa; margin-bottom: 4px; word-break: break-all;">
+                  <strong>URL:</strong> ${ical.url.substring(0, 60)}...
+                </div>
+                <div style="font-size: 11px; color: #aaa; margin-bottom: 8px;">
+                  <strong>Date Added:</strong> ${dateAdded}
+                </div>
+                <button class="delete-calendar-btn" data-index="${index}" style="padding: 4px 8px; font-size: 11px; background: rgba(255, 50, 50, 0.2); border-color: rgba(255, 50, 50, 0.4); color: #ff6b6b;">
+                  Delete Calendar
+                </button>
+              </div>
+            `;
+          }).join('');
+          
+          // Add event listeners to delete buttons
+          document.querySelectorAll('.delete-calendar-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+              const index = parseInt(e.target.dataset.index);
+              this.deleteCalendar(index);
+            });
+          });
+        } catch (e) {
+            // Failed to render calendars list - silenced
+        }
+      }
+      
+      async deleteCalendar(index) {
+        if (!confirm('Are you sure you want to delete this calendar?')) {
+          return;
+        }
+        
+        try {
+          const config = await window.electronAPI.getConfig();
+          if (config.icals && config.icals[index]) {
+            config.icals.splice(index, 1);
+            await window.electronAPI.saveConfig(config);
+            
+            // Show success message
+            const status = document.getElementById('status');
+            if (status) {
+              status.textContent = '✓ Calendar deleted!';
+              status.classList.remove('error');
+              status.classList.add('success');
+              setTimeout(() => {
+                status.textContent = '';
+                status.classList.remove('success');
+              }, 2000);
+            }
+            
+            // Refresh the list
+            this.renderCalendarsList();
+          }
+        } catch (e) {
+          alert('Failed to delete calendar: ' + e.message);
         }
       }
 
@@ -409,7 +504,7 @@ async function initializeHomeSettings() {
             setTimeout(() => { try { status.textContent = ''; status.classList.remove('success'); } catch (e) {} }, 1800);
           }
         } catch (e) {
-          console.error('[saveSettings] error:', e);
+            // [saveSettings] error - silenced
           alert('Failed to save settings: ' + e.message);
         }
       }
@@ -433,5 +528,5 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initializeHomeSettings);
 } else {
   // DOM already loaded (happens with dynamic script loading)
-  initializeHomeSettings().catch(err => console.error('Error initializing home settings:', err));
+  initializeHomeSettings().catch(err => { /* Error initializing home settings - silenced */ });
 }

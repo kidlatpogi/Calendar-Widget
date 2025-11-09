@@ -2,17 +2,15 @@ const { execSync, spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-console.log('[predist] starting');
+// predist: starting
 
 function tryKill(processName) {
   try {
     if (process.platform === 'win32') {
       // try taskkill
-      execSync(`taskkill /IM "${processName}" /F /T`, { stdio: 'ignore' });
-      console.log(`[predist] killed ${processName}`);
+  execSync(`taskkill /IM "${processName}" /F /T`, { stdio: 'ignore' });
     } else {
-      execSync(`pkill -f ${processName}`, { stdio: 'ignore' });
-      console.log(`[predist] pkilled ${processName}`);
+  execSync(`pkill -f ${processName}`, { stdio: 'ignore' });
     }
   } catch (e) {
     // ignore
@@ -25,14 +23,11 @@ tryKill('Calendar Widget.exe');
 
 const distPath = path.join(__dirname, '..', 'dist');
 try {
-  if (fs.existsSync(distPath)) {
-    fs.rmSync(distPath, { recursive: true, force: true });
-    console.log('[predist] removed dist');
-  } else {
-    console.log('[predist] no dist directory');
-  }
+    if (fs.existsSync(distPath)) {
+      fs.rmSync(distPath, { recursive: true, force: true });
+    }
 } catch (err) {
-  console.warn('[predist] failed to remove dist:', err.message);
+  // ignore cleanup errors
 }
 
-console.log('[predist] done');
+// predist: done

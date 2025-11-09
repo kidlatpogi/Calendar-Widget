@@ -56,61 +56,23 @@ const domElementPool = {
   }
 };
 
-// click-through toggle button (injected)
+// Click-through state management (controlled via tray menu, no UI button)
 let clickThroughEnabled = false;
-const ctBtn = document.createElement('button');
-ctBtn.id = 'clickthrough-btn';
-ctBtn.title = 'Toggle click-through (allow clicks to pass through widget)';
-ctBtn.textContent = 'Click-through: Off';
-ctBtn.className = 'control-btn';
-ctBtn.style.marginLeft = '6px';
-ctBtn.style.border = '1px solid rgba(255,255,255,0.16)';
-ctBtn.style.background = 'rgba(255,255,255,0.02)';
-ctBtn.style.color = '#fff';
-ctBtn.style.padding = '6px 8px';
-ctBtn.style.borderRadius = '6px';
-ctBtn.style.cursor = 'pointer';
-// If we found the ct-placeholder, append there; otherwise append to fallback container
-const ctSlot = document.getElementById('ct-placeholder');
-if (ctSlot) ctSlot.appendChild(ctBtn); else if (controlsEl) controlsEl.appendChild(ctBtn); else document.body.appendChild(ctBtn);
 
-// collapse/expand toggle (injected)
+// collapse state management (no UI button - controlled via tray menu)
 let collapsed = false;
-const collapseBtn = document.createElement('button');
-collapseBtn.id = 'collapse-btn';
-collapseBtn.title = 'Collapse controls';
-collapseBtn.textContent = '▾';
-collapseBtn.style.marginLeft = '6px';
-collapseBtn.style.border = '1px solid rgba(255,255,255,0.12)';
-collapseBtn.style.background = 'rgba(0,0,0,0.12)';
-collapseBtn.style.color = '#fff';
-collapseBtn.style.padding = '4px 8px';
-collapseBtn.style.borderRadius = '6px';
-collapseBtn.style.cursor = 'pointer';
-const collapseSlot = document.getElementById('collapse-placeholder');
-if (collapseSlot) collapseSlot.appendChild(collapseBtn); else if (controlsEl) controlsEl.appendChild(collapseBtn); else document.body.appendChild(collapseBtn);
 
 // restore state from localStorage if present
-try { collapsed = localStorage.getItem('cw.collapsed') === '1'; } catch (e) { collapsed = false; }
-function applyCollapsedState(invokedByKeyboard = false) {
+function applyCollapsedState(isCollapsed, invokedByKeyboard = false) {
   try {
     const appEl = document.getElementById('app');
     if (!appEl) return;
-    if (collapsed) appEl.classList.add('collapsed'); else appEl.classList.remove('collapsed');
-    collapseBtn.textContent = collapsed ? '▸' : '▾';
-    try { localStorage.setItem('cw.collapsed', collapsed ? '1' : '0'); } catch (e) {}
-    // Persist collapsed state in config.json so it survives restarts
-    try {
-      if (window.electronAPI && window.electronAPI.setConfig) {
-        window.electronAPI.setConfig({ ui: { collapsed: !!collapsed } }).catch(() => {});
-      }
-    } catch (e) { /* ignore */ }
+    if (isCollapsed) appEl.classList.add('collapsed'); else appEl.classList.remove('collapsed');
+    collapsed = isCollapsed; // Update global state
     // show a short left-anchored tip indicating collapsed state only when invoked by keyboard
-    try { if (collapsed && invokedByKeyboard && typeof showLeftTip === 'function') showLeftTip('Ctrl+Shift+M to uncollapse', 2000); } catch (e) {}
+    try { if (isCollapsed && invokedByKeyboard && typeof showLeftTip === 'function') showLeftTip('Ctrl+Shift+M to uncollapse', 2000); } catch (e) {}
   } catch (e) { /* ignore */ }
 }
-collapseBtn.addEventListener('click', () => { collapsed = !collapsed; applyCollapsedState(); });
-applyCollapsedState();
 
 // Toast helper
 function showToast(text, ms = 1800) {
@@ -141,8 +103,7 @@ window.addEventListener('keydown', (ev) => {
   try {
     if (ev.ctrlKey && ev.shiftKey && (ev.key === 'M' || ev.key === 'm')) {
       ev.preventDefault();
-      collapsed = !collapsed;
-      applyCollapsedState(true);
+      window.electronAPI.onToggleCollapse(); // Ask main process to toggle
     }
   } catch (e) { /* ignore */ }
 });
@@ -152,40 +113,9 @@ try {
   const dragBarEl = document.getElementById('drag-bar');
   if (dragBarEl) {
   // drag handle is the main draggable area; no separate drag label needed
-    // Create an 'uncollapse' button inside the drag bar so user can restore the UI
-    let uncollapseBtn = document.getElementById('uncollapse-btn');
-    if (!uncollapseBtn) {
-      uncollapseBtn = document.createElement('button');
-      uncollapseBtn.id = 'uncollapse-btn';
-      uncollapseBtn.title = 'Restore';
-      uncollapseBtn.textContent = '▾';
-      // styling: minimal and inline; CSS will manage visibility
-      uncollapseBtn.style.border = '1px solid rgba(255,255,255,0.14)';
-      uncollapseBtn.style.background = 'rgba(0,0,0,0.2)';
-      uncollapseBtn.style.color = '#fff';
-      uncollapseBtn.style.padding = '2px 6px';
-      uncollapseBtn.style.borderRadius = '6px';
-      uncollapseBtn.style.cursor = 'pointer';
-      uncollapseBtn.style.fontSize = '12px';
-      uncollapseBtn.style.marginLeft = '8px';
-      uncollapseBtn.style.display = 'none';
-      uncollapseBtn.setAttribute('aria-hidden', 'true');
-      // ensure it's clickable even though parent has -webkit-app-region: drag
-      uncollapseBtn.style.webkitAppRegion = 'no-drag';
-      uncollapseBtn.addEventListener('click', (ev) => {
-        try {
-          ev.stopPropagation();
-          collapsed = false;
-          applyCollapsedState();
-        } catch (e) { /* ignore */ }
-      });
-      dragBarEl.appendChild(uncollapseBtn);
-    }
-
+    // Clicking the drag bar toggles window visibility when collapsed.
     dragBarEl.addEventListener('click', async (ev) => {
       try {
-        // if click target is the uncollapse button, let its handler restore the UI
-        if (ev.target && ev.target.id === 'uncollapse-btn') return;
         if (collapsed && window.electronAPI && window.electronAPI.toggleVisibility) {
           await window.electronAPI.toggleVisibility('main');
         }
@@ -193,18 +123,6 @@ try {
     });
   }
 } catch (e) { /* ignore */ }
-
-// Make the toggle button keyboard-accessible and show hotkey
-ctBtn.tabIndex = 0;
-ctBtn.title = ctBtn.title + ' — Hotkey: Ctrl+Shift+C';
-ctBtn.addEventListener('keydown', async (ev) => {
-  try {
-    if (ev.key === 'Enter' || ev.key === ' ' || ev.key === 'Spacebar') {
-      ev.preventDefault();
-      ctBtn.click();
-    }
-  } catch (e) { /* ignore */ }
-});
 
 function setStatus(msg) {
   if (statusEl) statusEl.textContent = msg || '';
@@ -799,16 +717,17 @@ async function applyUiFromConfig(cfg) {
   } catch (e) { /* ignore */ }
 }
 
+// Enhanced refresh handler: supports optional auto-clear before refresh
 if (refreshBtn) refreshBtn.addEventListener('click', async () => {
   try {
     // Check config for autoClearOnRefresh
-    const cfg = await window.electronAPI.listConfig();
+    const cfg = (window.electronAPI && window.electronAPI.listConfig) ? await window.electronAPI.listConfig() : null;
     const doClear = cfg?.ui?.autoClearOnRefresh === true;
     if (doClear) {
       // Clear renderer pools first
       try { if (domElementPool) domElementPool.clearPool(); } catch (e) {}
-      // Request main GC (best-effort)
-      try { await window.electronAPI.requestMainGC(); } catch (e) {}
+      // Request main GC (best-effort) if available
+      try { if (window.electronAPI && window.electronAPI.requestMainGC) await window.electronAPI.requestMainGC(); } catch (e) {}
     }
     await load();
   } catch (e) {
@@ -820,29 +739,12 @@ if (homeBtn) homeBtn.addEventListener('click', async () => {
   catch (e) { setStatus('Failed to open welcome'); }
 });
 
-// Toggle click-through permanently
-if (ctBtn) ctBtn.addEventListener('click', async () => {
-  try {
-    clickThroughEnabled = !clickThroughEnabled;
-    ctBtn.textContent = 'Click-through: ' + (clickThroughEnabled ? 'On' : 'Off');
-    if (window.electronAPI && window.electronAPI.setClickThrough) {
-      await window.electronAPI.setClickThrough('main', clickThroughEnabled);
-    }
-    // Persist setting in config UI
-    if (window.electronAPI && window.electronAPI.setConfig) {
-      await window.electronAPI.setConfig({ clickThrough: !!clickThroughEnabled });
-    }
-    // button-click toggles click-through; hotkey tip is shown only for keyboard invocations
-  } catch (e) { }
-});
-
-// Keyboard fallback: Ctrl+Shift+C toggles click-through from the renderer in case the on-screen control is unreachable
+// Keyboard hotkey: Ctrl+Shift+C toggles click-through from the renderer
 window.addEventListener('keydown', async (ev) => {
   try {
     if (ev.ctrlKey && ev.shiftKey && (ev.code === 'KeyC' || ev.key === 'C' || ev.key === 'c')) {
       ev.preventDefault();
       clickThroughEnabled = !clickThroughEnabled;
-      if (ctBtn) ctBtn.textContent = 'Click-through: ' + (clickThroughEnabled ? 'On' : 'Off');
       if (window.electronAPI && window.electronAPI.setClickThrough) await window.electronAPI.setClickThrough('main', clickThroughEnabled);
       if (window.electronAPI && window.electronAPI.setConfig) await window.electronAPI.setConfig({ clickThrough: !!clickThroughEnabled });
       try { if (typeof showLeftTip === 'function') showLeftTip('Ctrl+Shift+C to toggle click-through', 2000); } catch (e) {}
@@ -873,13 +775,6 @@ window.addEventListener('keydown', async (ev) => {
     el.addEventListener('mouseenter', disableClickThrough);
     el.addEventListener('mouseleave', enableClickThrough);
   });
-  
-  // Exclude the click-through button itself from this behavior (it should always work)
-  const ctBtn = document.getElementById('clickthrough-btn');
-  if (ctBtn) {
-    ctBtn.removeEventListener('mouseenter', disableClickThrough);
-    ctBtn.removeEventListener('mouseleave', enableClickThrough);
-  }
 })();
 
 // Allow right-click (context menu) to pass through
@@ -943,10 +838,13 @@ window.addEventListener('DOMContentLoaded', async () => {
       // apply click-through from config
       if (cfg.ui && typeof cfg.ui.clickThrough === 'boolean') {
         clickThroughEnabled = !!cfg.ui.clickThrough;
-        if (ctBtn) ctBtn.textContent = 'Click-through: ' + (clickThroughEnabled ? 'On' : 'Off');
         if (window.electronAPI && window.electronAPI.setClickThrough) {
           await window.electronAPI.setClickThrough('main', clickThroughEnabled);
         }
+      }
+      // Apply collapsed state from config
+      if (cfg.ui && typeof cfg.ui.collapsed === 'boolean') {
+        applyCollapsedState(!!cfg.ui.collapsed);
       }
     }
   } catch (e) { /* ignore */ }
@@ -960,18 +858,23 @@ window.addEventListener('DOMContentLoaded', async () => {
         if (cfg && cfg.ui && typeof cfg.ui.clickThrough === 'boolean') {
           const next = !!cfg.ui.clickThrough;
           clickThroughEnabled = next;
-          if (ctBtn) ctBtn.textContent = 'Click-through: ' + (clickThroughEnabled ? 'On' : 'Off');
+        }
+        // Sync collapsed state
+        if (cfg && cfg.ui && typeof cfg.ui.collapsed === 'boolean') {
+          applyCollapsedState(!!cfg.ui.collapsed);
         }
         if (typeof load === 'function') load();
       } catch (e) { /* ignore */ }
     });
   }
 
-  // Listen for toggle-collapse sent from main via global shortcut
+  // Listen for toggle-collapse sent from main via global shortcut or tray
   try {
     if (window.electronAPI && window.electronAPI.onToggleCollapse) {
-      window.electronAPI.onToggleCollapse(() => {
-        try { collapsed = !collapsed; applyCollapsedState(); } catch (e) { /* ignore */ }
+      window.electronAPI.onToggleCollapse(async () => {
+        // Main process is the source of truth. When it says toggle, we toggle.
+        collapsed = !collapsed;
+        applyCollapsedState(collapsed);
       });
     }
   } catch (e) { /* ignore */ }

@@ -123,9 +123,7 @@ html,body{
   pointer-events: none;
 }
 
-/* Uncollapse button visible only when collapsed */
-#uncollapse-btn { display: none; -webkit-app-region: no-drag; }
-#app.collapsed #uncollapse-btn { display: inline-block; }
+/* Uncollapse button removed - collapse is controlled via tray/keyboard */
 
 .app-title{
   font-weight:600;

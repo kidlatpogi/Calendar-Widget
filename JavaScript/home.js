@@ -134,54 +134,30 @@ async function initializeHomeSettings() {
         
         // Navigation
         document.getElementById('settings-btn')?.addEventListener('click', () => this.viewManager.show('settings'));
-<<<<<<< HEAD
-        document.getElementById('add-ical-btn')?.addEventListener('click', () => {
-          this.viewManager.show('add-ical-view');
-          this.renderCalendarsList(); // Render calendars list when opening the view
-        });
-=======
         document.getElementById('add-ical-btn')?.addEventListener('click', () => this.viewManager.show('add-ical-view'));
-        // Manage Calendars
-        // Create a 'Manage' button in main menu if not present
-        let manageBtn = document.getElementById('manage-calendars-btn');
-        if (!manageBtn) {
-          // Insert a visible Manage Calendars button into the main menu
-          manageBtn = document.createElement('button');
-          manageBtn.id = 'manage-calendars-btn';
-          manageBtn.type = 'button';
-          manageBtn.textContent = 'Manage Calendars';
-          manageBtn.className = 'primary';
-          const mm = document.getElementById('main-menu');
-          if (mm) mm.appendChild(manageBtn);
-        }
-        manageBtn.addEventListener('click', async () => {
-          try {
-            this.viewManager.show('manage-calendars');
-            // Populate list once the view is visible
-            try { await this.populateCalendarList(); } catch (e) { /* ignore */ }
-          } catch (e) { console.error('manage btn click failed', e); }
-        });
-        document.getElementById('back-from-manage')?.addEventListener('click', () => this.viewManager.show('main-menu'));
->>>>>>> origin/main
+        // Manage Calendars: ensure a Manage button exists and wire it to the manage view
+        (function ensureManageButton(self) {
+          let manageBtn = document.getElementById('manage-calendars-btn');
+          if (!manageBtn) {
+            manageBtn = document.createElement('button');
+            manageBtn.id = 'manage-calendars-btn';
+            manageBtn.type = 'button';
+            manageBtn.textContent = 'Manage Calendars';
+            manageBtn.className = 'primary';
+            const mm = document.getElementById('main-menu');
+            if (mm) mm.appendChild(manageBtn);
+          }
+          if (manageBtn) {
+            manageBtn.addEventListener('click', async () => {
+              try {
+                self.viewManager.show('manage-calendars');
+                // Populate list once the view is visible
+                try { await self.populateCalendarList(); } catch (e) { /* ignore */ }
+              } catch (e) { /* silenced */ }
+            });
+          }
+        })(this);
         document.getElementById('back-to-main')?.addEventListener('click', () => this.viewManager.show('main-menu'));
-            document.getElementById('add-ical-btn')?.addEventListener('click', () => this.viewManager.show('add-ical-view'));
-            // Manage Calendars: ensure a Manage button exists in main menu to open the list
-            let manageBtn = document.getElementById('manage-calendars-btn');
-            if (!manageBtn) {
-              manageBtn = document.createElement('button');
-              manageBtn.id = 'manage-calendars-btn';
-              manageBtn.type = 'button';
-              manageBtn.textContent = 'Manage Calendars';
-              manageBtn.className = 'primary';
-              const mm = document.getElementById('main-menu');
-              if (mm) mm.appendChild(manageBtn);
-            }
-            if (manageBtn) {
-              manageBtn.addEventListener('click', () => {
-                this.viewManager.show('manage-calendars');
-                this.renderCalendarsList(); // Ensure the calendars list is rendered
-              });
-            }
         // Settings Actions
         document.getElementById('save-settings')?.addEventListener('click', () => this.saveSettings());
         

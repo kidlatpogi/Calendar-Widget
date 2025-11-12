@@ -98,12 +98,33 @@ function showToast(text, ms = 1800) {
   } catch (e) { /* ignore */ }
 }
 
-// Renderer-level key handler: Ctrl+Shift+M toggles collapse when window is focused
+// Unified keyboard shortcut handler: prevents cross-triggering between shortcuts
 window.addEventListener('keydown', (ev) => {
   try {
-    if (ev.ctrlKey && ev.shiftKey && (ev.key === 'M' || ev.key === 'm')) {
+    // Only process Ctrl+Shift combinations
+    if (!ev.ctrlKey || !ev.shiftKey) return;
+    
+    // Ctrl+Shift+M: Toggle collapse (Show/Hide Buttons)
+    if (ev.key === 'M' || ev.key === 'm' || ev.code === 'KeyM') {
       ev.preventDefault();
-      window.electronAPI.onToggleCollapse(); // Ask main process to toggle
+      ev.stopImmediatePropagation(); // Prevent other listeners on same element from firing
+      if (window.electronAPI && window.electronAPI.toggleCollapse) {
+        window.electronAPI.toggleCollapse();
+      }
+      return; // Early return to prevent any further processing
+    }
+    
+    // Ctrl+Shift+C: Toggle click-through
+    // Note: Global shortcut in main.js handles this via toggleClickThrough() which persists state
+    // The renderer handler here is redundant but kept for immediate UI feedback
+    // The global shortcut will send config-updated event which will sync the state properly
+    if (ev.key === 'C' || ev.key === 'c' || ev.code === 'KeyC') {
+      ev.preventDefault();
+      ev.stopImmediatePropagation(); // Prevent other listeners on same element from firing
+      // Don't toggle here - let the global shortcut handle it to avoid double-toggling
+      // Just show the tip, the config-updated event will sync the actual state
+      try { if (typeof showLeftTip === 'function') showLeftTip('Ctrl+Shift+C to toggle click-through', 2000); } catch (e) {}
+      return; // Early return to prevent any further processing
     }
   } catch (e) { /* ignore */ }
 });
@@ -712,8 +733,11 @@ async function applyUiFromConfig(cfg) {
   if (ui.clockSize) root.style.setProperty('--clock-size', ui.clockSize + 'px');
   if (ui.clockAlignment) root.style.setProperty('--clock-alignment', ui.clockAlignment);
   
-  // Start/stop clock updates based on config
-  startClockUpdates(cfg);
+  // Start/stop clock updates based on config - ONLY if showClock is explicitly in the update
+  // This prevents the clock from being hidden when partial config updates are received
+  if (ui.hasOwnProperty('showClock') || ui.hasOwnProperty('clock12Hour')) {
+    startClockUpdates(cfg);
+  }
   } catch (e) { /* ignore */ }
 }
 
@@ -739,18 +763,8 @@ if (homeBtn) homeBtn.addEventListener('click', async () => {
   catch (e) { setStatus('Failed to open welcome'); }
 });
 
-// Keyboard hotkey: Ctrl+Shift+C toggles click-through from the renderer
-window.addEventListener('keydown', async (ev) => {
-  try {
-    if (ev.ctrlKey && ev.shiftKey && (ev.code === 'KeyC' || ev.key === 'C' || ev.key === 'c')) {
-      ev.preventDefault();
-      clickThroughEnabled = !clickThroughEnabled;
-      if (window.electronAPI && window.electronAPI.setClickThrough) await window.electronAPI.setClickThrough('main', clickThroughEnabled);
-      if (window.electronAPI && window.electronAPI.setConfig) await window.electronAPI.setConfig({ clickThrough: !!clickThroughEnabled });
-      try { if (typeof showLeftTip === 'function') showLeftTip('Ctrl+Shift+C to toggle click-through', 2000); } catch (e) {}
-    }
-  } catch (e) { /* ignore */ }
-});
+// Note: Keyboard shortcuts for Ctrl+Shift+C and Ctrl+Shift+M are now handled 
+// in the unified handler above to prevent cross-triggering
 
 // When click-through is enabled, clicks pass through to windows behind.
 // However, we want UI controls (buttons, inputs, etc.) to remain clickable.
@@ -854,15 +868,27 @@ window.addEventListener('DOMContentLoaded', async () => {
       try {
         // Keep UI settings in sync
         applyUiFromConfig(cfg);
+        
         // Sync click-through state if changed externally (tray/global shortcut)
         if (cfg && cfg.ui && typeof cfg.ui.clickThrough === 'boolean') {
           const next = !!cfg.ui.clickThrough;
           clickThroughEnabled = next;
         }
-        // Sync collapsed state
-        if (cfg && cfg.ui && typeof cfg.ui.collapsed === 'boolean') {
-          applyCollapsedState(!!cfg.ui.collapsed);
+        
+        // CRITICAL FIX: Only sync collapsed state if it's explicitly present in the update
+        // AND it's different from current state. This prevents unwanted toggling when
+        // config-updated events are sent for other properties (like clickThrough).
+        // We check if collapsed exists in cfg.ui to know if it was part of the update.
+        if (cfg && cfg.ui && cfg.ui.hasOwnProperty('collapsed') && typeof cfg.ui.collapsed === 'boolean') {
+          const configCollapsed = !!cfg.ui.collapsed;
+          // Only apply if the state is actually different from current state
+          if (configCollapsed !== collapsed) {
+            applyCollapsedState(configCollapsed);
+          }
         }
+        // If collapsed is not in the update (not hasOwnProperty), don't touch it at all
+        // This is the key fix: we only sync collapsed when it's explicitly in the update
+        
         if (typeof load === 'function') load();
       } catch (e) { /* ignore */ }
     });

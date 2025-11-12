@@ -26,4 +26,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   minimizeWindow: (windowName) => ipcRenderer.invoke('minimize-window', windowName),
   toggleMaximizeWindow: (windowName) => ipcRenderer.invoke('toggle-maximize-window', windowName),
   closeWindow: (windowName) => ipcRenderer.invoke('close-window', windowName),
+  toggleCollapse: () => ipcRenderer.invoke('toggle-collapse'),
+  onToggleCollapse: (cb) => ipcRenderer.on('toggle-collapse', cb),
 });

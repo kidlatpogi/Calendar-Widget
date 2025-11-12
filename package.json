@@ -57,7 +57,7 @@
                                 "allowToChangeInstallationDirectory":  true,
                                 "createDesktopShortcut":  true,
                                 "createStartMenuShortcut":  true,
-                                "include":  "build/uninstaller.nsh"
+                                "include":  "assets/uninstaller.nsh"
                             }
               }
 }

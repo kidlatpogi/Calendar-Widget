@@ -27,14 +27,14 @@ function ensureUserConfigExists() {
       if (fs.existsSync(packagedDefaultCfg)) {
         try {
           // Ensure user directory exists
-          try { fs.mkdirSync(userCfgDir, { recursive: true }); } catch (e) {}
+          try { fs.mkdirSync(userCfgDir, { recursive: true }); } catch (e) { }
           fs.copyFileSync(packagedDefaultCfg, cfgPath);
         } catch (e) {
           // ignore copy errors
         }
       } else {
         // Write a sensible minimal default
-        try { fs.mkdirSync(userCfgDir, { recursive: true }); } catch (e) {}
+        try { fs.mkdirSync(userCfgDir, { recursive: true }); } catch (e) { }
         const minimal = { icals: [], ui: {}, acceptedTerms: false, windowBounds: {} };
         fs.writeFileSync(cfgPath, JSON.stringify(minimal, null, 2));
       }
@@ -80,11 +80,11 @@ try {
       cfgManager.saveConfig();
 
       // Let processor attempt to free any in-memory metadata
-      try { if (icalProcessor && typeof icalProcessor.clearCacheForUrl === 'function') icalProcessor.clearCacheForUrl(url); } catch (e) {}
+      try { if (icalProcessor && typeof icalProcessor.clearCacheForUrl === 'function') icalProcessor.clearCacheForUrl(url); } catch (e) { }
 
       // Notify windows if available
-      try { if (windowManager && windowManager.win && !windowManager.win.isDestroyed()) { windowManager.win.webContents.send('refresh-events'); windowManager.win.webContents.send('perform-memory-clean'); } } catch (e) {}
-      try { if (windowManager && windowManager.homeWin && !windowManager.homeWin.isDestroyed()) { windowManager.homeWin.webContents.send('refresh-events'); windowManager.homeWin.webContents.send('perform-memory-clean'); } } catch (e) {}
+      try { if (windowManager && windowManager.win && !windowManager.win.isDestroyed()) { windowManager.win.webContents.send('refresh-events'); windowManager.win.webContents.send('perform-memory-clean'); } } catch (e) { }
+      try { if (windowManager && windowManager.homeWin && !windowManager.homeWin.isDestroyed()) { windowManager.homeWin.webContents.send('refresh-events'); windowManager.homeWin.webContents.send('perform-memory-clean'); } } catch (e) { }
 
       return { ok: true, icals: cfg.icals };
     } catch (e) {
@@ -98,7 +98,7 @@ try {
   ipcMain.handle('request-main-gc', async () => {
     try {
       if (typeof global.gc === 'function') {
-        try { global.gc(); } catch (e) {}
+        try { global.gc(); } catch (e) { }
         return { ok: true };
       }
       return { ok: false, error: 'global.gc not available' };
@@ -113,7 +113,7 @@ try {
 app.whenReady().then(() => {
   // Ensure a per-user config exists (copy packaged defaults on first run)
   ensureUserConfigExists();
-  
+
   // Remove the default application menu so File/Edit/etc. are not visible
   try {
     // In development you may still want the menu; gate if needed
@@ -128,35 +128,34 @@ app.whenReady().then(() => {
   } catch (e) {
     // ignore menu clear errors
   }
-  
+
   // Initialize managers
   cfgManager = new ConfigManager(cfgPath);
   icalProcessor = new IcalProcessor(cfgManager, null, null);
   windowManager = new WindowManager(cfgManager, icalProcessor);
-  
+
   // Setup IPC handlers
   windowManager.setupIpcHandlers();
-  
+
   // Check if this is the first launch
   const isFirstLaunch = cfgManager.config.firstLaunch === true;
-  
+
   if (isFirstLaunch) {
     // First launch: show home window for setup
     windowManager.createHomeWindow();
     icalProcessor.homeWindow = windowManager.homeWin;
-    
+
     // Mark first launch as done so next startup goes directly to calendar
-    cfgManager.updateConfig({ firstLaunch: false });
+    cfgManager.updateRootConfig({ firstLaunch: false });
   } else {
     // Subsequent launches: show calendar directly
     windowManager.createMainWindow();
     icalProcessor.mainWindow = windowManager.win;
   }
-  
   // Start polling for iCal updates
   const interval = (cfgManager.config.ui?.fetchInterval || 1) * 60 * 1000;
   icalProcessor.startPolling(interval);
-  
+
   // Setup tray menu
   windowManager.setupTray();
 
@@ -171,9 +170,9 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') {
-        app.quit();
-    }
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
 });
 
 // Listen for config updates and apply changes

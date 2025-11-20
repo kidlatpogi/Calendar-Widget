@@ -1,5 +1,18 @@
 // Minimal event loader + renderer for the calendar UI
 
+// Immediate collapsed state application to prevent FOUC
+(function applyInitialCollapsedState() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('collapsed') === 'true') {
+      const appEl = document.getElementById('app');
+      if (appEl) appEl.classList.add('collapsed');
+      // Also set global variable so subsequent logic knows
+      window.__initialCollapsed = true;
+    }
+  } catch (e) { /* ignore */ }
+})();
+
 const listEl = document.getElementById('list');
 const statusEl = document.getElementById('status');
 const refreshBtn = document.getElementById('refresh');
@@ -12,7 +25,7 @@ const domElementPool = {
   divs: [],
   spans: [],
   textNodes: [],
-  
+
   getDiv() {
     if (this.divs.length > 0) {
       const div = this.divs.pop();
@@ -23,14 +36,14 @@ const domElementPool = {
     }
     return document.createElement('div');
   },
-  
+
   putDiv(div) {
     // Keep a smaller pool to avoid holding too many detached elements in memory
     if (this.divs.length < 120) { // Pool max 120 divs
       this.divs.push(div);
     }
   },
-  
+
   getSpan() {
     if (this.spans.length > 0) {
       const span = this.spans.pop();
@@ -41,14 +54,14 @@ const domElementPool = {
     }
     return document.createElement('span');
   },
-  
+
   putSpan(span) {
     // Keep a smaller pool to avoid holding too many detached elements in memory
     if (this.spans.length < 120) { // Pool max 120 spans
       this.spans.push(span);
     }
   },
-  
+
   clearPool() {
     this.divs = [];
     this.spans = [];
@@ -60,7 +73,7 @@ const domElementPool = {
 let clickThroughEnabled = false;
 
 // collapse state management (no UI button - controlled via tray menu)
-let collapsed = false;
+let collapsed = window.__initialCollapsed === true;
 
 // restore state from localStorage if present
 function applyCollapsedState(isCollapsed, invokedByKeyboard = false) {
@@ -70,7 +83,7 @@ function applyCollapsedState(isCollapsed, invokedByKeyboard = false) {
     if (isCollapsed) appEl.classList.add('collapsed'); else appEl.classList.remove('collapsed');
     collapsed = isCollapsed; // Update global state
     // show a short left-anchored tip indicating collapsed state only when invoked by keyboard
-    try { if (isCollapsed && invokedByKeyboard && typeof showLeftTip === 'function') showLeftTip('Ctrl+Shift+M to uncollapse', 2000); } catch (e) {}
+    try { if (isCollapsed && invokedByKeyboard && typeof showLeftTip === 'function') showLeftTip('Ctrl+Shift+M to uncollapse', 2000); } catch (e) { }
   } catch (e) { /* ignore */ }
 }
 
@@ -94,7 +107,7 @@ function showToast(text, ms = 1800) {
     }
     t.textContent = text;
     t.style.opacity = '1';
-    setTimeout(() => { try { t.style.opacity = '0'; } catch (e) {} }, ms);
+    setTimeout(() => { try { t.style.opacity = '0'; } catch (e) { } }, ms);
   } catch (e) { /* ignore */ }
 }
 
@@ -103,7 +116,7 @@ window.addEventListener('keydown', (ev) => {
   try {
     // Only process Ctrl+Shift combinations
     if (!ev.ctrlKey || !ev.shiftKey) return;
-    
+
     // Ctrl+Shift+M: Toggle collapse (Show/Hide Buttons)
     if (ev.key === 'M' || ev.key === 'm' || ev.code === 'KeyM') {
       ev.preventDefault();
@@ -113,7 +126,7 @@ window.addEventListener('keydown', (ev) => {
       }
       return; // Early return to prevent any further processing
     }
-    
+
     // Ctrl+Shift+C: Toggle click-through
     // Note: Global shortcut in main.js handles this via toggleClickThrough() which persists state
     // The renderer handler here is redundant but kept for immediate UI feedback
@@ -123,7 +136,7 @@ window.addEventListener('keydown', (ev) => {
       ev.stopImmediatePropagation(); // Prevent other listeners on same element from firing
       // Don't toggle here - let the global shortcut handle it to avoid double-toggling
       // Just show the tip, the config-updated event will sync the actual state
-      try { if (typeof showLeftTip === 'function') showLeftTip('Ctrl+Shift+C to toggle click-through', 2000); } catch (e) {}
+      try { if (typeof showLeftTip === 'function') showLeftTip('Ctrl+Shift+C to toggle click-through', 2000); } catch (e) { }
       return; // Early return to prevent any further processing
     }
   } catch (e) { /* ignore */ }
@@ -133,7 +146,7 @@ window.addEventListener('keydown', (ev) => {
 try {
   const dragBarEl = document.getElementById('drag-bar');
   if (dragBarEl) {
-  // drag handle is the main draggable area; no separate drag label needed
+    // drag handle is the main draggable area; no separate drag label needed
     // Clicking the drag bar toggles window visibility when collapsed.
     dragBarEl.addEventListener('click', async (ev) => {
       try {
@@ -151,27 +164,27 @@ function setStatus(msg) {
 
 function formatLocalDateKey(d) {
   const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2,'0');
-  const day = String(d.getDate()).padStart(2,'0');
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
 
 function parseEventDateObj(dtObj) {
   if (!dtObj) return null;
-  
+
   if (dtObj.date) {
     const parts = dtObj.date.split('-').map(Number);
-    const d = new Date(parts[0], parts[1]-1, parts[2], 12, 0, 0);
+    const d = new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0);
     return d;
   }
-  
+
   if (dtObj.dateTime) {
     let dateStr = dtObj.dateTime;
     // Parse as-is without timezone conversion
     const d = new Date(dateStr);
     if (!isNaN(d.getTime())) return d;
   }
-  
+
   return null;
 }
 
@@ -181,11 +194,11 @@ let globalClock12Hour = false; // Store 12-hour preference globally
 function updateClock(clockDiv, use12Hour = null) {
   // Use provided value or fall back to global preference
   const format12 = use12Hour !== null ? use12Hour : globalClock12Hour;
-  
+
   const now = new Date();
   let hours = now.getHours();
   const minutes = String(now.getMinutes()).padStart(2, '0');
-  
+
   let timeStr;
   if (format12) {
     const ampm = hours >= 12 ? 'PM' : 'AM';
@@ -196,7 +209,7 @@ function updateClock(clockDiv, use12Hour = null) {
     hours = String(hours).padStart(2, '0');
     timeStr = `${hours}:${minutes}`;
   }
-  
+
   clockDiv.textContent = timeStr;
 }
 
@@ -206,7 +219,7 @@ function startClockUpdates(config) {
     clearInterval(clockInterval);
     clockInterval = null;
   }
-  
+
   // Only start clock if enabled
   if (!config?.ui?.showClock) {
     // Hide existing clock element
@@ -214,14 +227,14 @@ function startClockUpdates(config) {
     if (clockEl) clockEl.classList.add('hidden');
     return;
   }
-  
+
   // Show clock element
   const clockEl = document.querySelector('.clock');
   if (clockEl) clockEl.classList.remove('hidden');
-  
+
   // Store format preference in global variable so interval updates use it
   globalClock12Hour = config?.ui?.clock12Hour === true;
-  
+
   // Update clock every second
   clockInterval = setInterval(() => {
     const clockDiv = document.querySelector('.clock');
@@ -229,12 +242,13 @@ function startClockUpdates(config) {
       updateClock(clockDiv);
     }
   }, 1000);
-  
+
   // Initial update
   if (clockEl) {
     updateClock(clockEl);
   }
 }
+
 function render(items, displayDays = 7, config = null) {
   if (!Array.isArray(items) || items.length === 0) {
     if (listEl) listEl.innerHTML = '<div class="no-events">No events</div>';
@@ -245,19 +259,19 @@ function render(items, displayDays = 7, config = null) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const todayKey = formatLocalDateKey(today);
-  
+
   const groups = {};
-  
+
   for (const ev of items) {
     const start = parseEventDateObj(ev.start || {});
     if (!start || isNaN(start.getTime())) continue;
-    
+
     const eventDate = new Date(start);
-    eventDate.setHours(0,0,0,0);
-    
+    eventDate.setHours(0, 0, 0, 0);
+
     // Only include events from today onwards
     if (eventDate < today) continue;
-    
+
     const key = formatLocalDateKey(start);
     groups[key] = groups[key] || [];
     groups[key].push({ ev, start });
@@ -267,11 +281,11 @@ function render(items, displayDays = 7, config = null) {
   const displayDays_clamped = displayDays;
   const showEmptyDays = config?.ui?.showEmptyDays !== false; // Default to true
   const days = [];
-  
+
   // Optimization: only render days with events (unless showEmptyDays is enabled)
   const daysWithEvents = new Set(Object.keys(groups));
   daysWithEvents.add(todayKey); // Always show today
-  
+
   for (let i = 0; i < displayDays_clamped; i++) {
     const d = new Date(today);
     d.setDate(today.getDate() + i);
@@ -281,23 +295,23 @@ function render(items, displayDays = 7, config = null) {
       days.push(d);
     }
   }
-  
+
   const now = new Date();
   const use12Hour = config?.ui?.clock12Hour === true;
-  
+
   // Clear old pool before rendering (allows GC of old elements)
   domElementPool.clearPool();
-  
+
   // Use DocumentFragment for batch DOM operations (reduces reflows)
   const frag = document.createDocumentFragment();
-  
+
   for (const d of days) {
     const key = formatLocalDateKey(d);
     const isTodayKey = key === todayKey;
-    
+
     const dayDiv = domElementPool.getDiv();
     dayDiv.className = 'day';
-    
+
     // Add clock for today if enabled - BEFORE the header
     if (isTodayKey) {
       const clockDiv = domElementPool.getDiv();
@@ -306,23 +320,23 @@ function render(items, displayDays = 7, config = null) {
       dayDiv.appendChild(clockDiv);
       updateClock(clockDiv);
     }
-    
-  const headerDiv = domElementPool.getDiv();
-  // Use a separate 'today' class to allow styling the header (day/date) separately
-  headerDiv.className = 'day-header' + (isTodayKey ? ' today' : '');
-  // Split into day name and date so colors can be applied separately
-  const dayName = domElementPool.getSpan();
-  dayName.className = 'day-name';
-  dayName.textContent = d.toLocaleDateString(undefined, { weekday: 'long' });
-  const dateSpan = domElementPool.getSpan();
-  dateSpan.className = 'date';
-  dateSpan.textContent = d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-  headerDiv.appendChild(dayName);
-  headerDiv.appendChild(dateSpan);
+
+    const headerDiv = domElementPool.getDiv();
+    // Use a separate 'today' class to allow styling the header (day/date) separately
+    headerDiv.className = 'day-header' + (isTodayKey ? ' today' : '');
+    // Split into day name and date so colors can be applied separately
+    const dayName = domElementPool.getSpan();
+    dayName.className = 'day-name';
+    dayName.textContent = d.toLocaleDateString(undefined, { weekday: 'long' });
+    const dateSpan = domElementPool.getSpan();
+    dateSpan.className = 'date';
+    dateSpan.textContent = d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    headerDiv.appendChild(dayName);
+    headerDiv.appendChild(dateSpan);
     dayDiv.appendChild(headerDiv);
-    
+
     const group = groups[key] || [];
-    
+
     if (group.length === 0) {
       // Show "No events" message for empty days
       const noEvDiv = domElementPool.getDiv();
@@ -330,24 +344,24 @@ function render(items, displayDays = 7, config = null) {
       noEvDiv.textContent = 'No events';
       dayDiv.appendChild(noEvDiv);
     } else {
-      group.sort((a,b)=> a.start - b.start);
+      group.sort((a, b) => a.start - b.start);
       for (const g of group) {
         const ev = g.ev;
         let timeText = '';
-        
+
         if (ev.start && ev.start.date) {
           timeText = 'All day';
         } else {
           const s = parseEventDateObj(ev.start || {});
           if (s && !isNaN(s.getTime())) {
-            timeText = s.toLocaleTimeString([], { hour:'numeric', minute:'2-digit' });
+            timeText = s.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
             const e = parseEventDateObj(ev.end || {});
             if (e && !isNaN(e.getTime()) && e.getTime() !== s.getTime()) {
-              timeText += ' – ' + e.toLocaleTimeString([], { hour:'numeric', minute:'2-digit' });
+              timeText += ' – ' + e.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
             }
           }
         }
-        
+
         const eventDiv = domElementPool.getDiv();
         eventDiv.className = 'event';
 
@@ -357,7 +371,7 @@ function render(items, displayDays = 7, config = null) {
         const isPast = endTime < now;
         const isOngoing = startTime <= now && now < endTime;
         const isFuture = startTime > now;
-        
+
         if (isPast) {
           eventDiv.classList.add('past');
         } else if (isOngoing) {
@@ -366,7 +380,7 @@ function render(items, displayDays = 7, config = null) {
           // Only apply 'future' styling for future events on TODAY
           eventDiv.classList.add('future');
         }
-        
+
         if (timeText) {
           const timeSpan = domElementPool.getSpan();
           timeSpan.className = 'time';
@@ -374,20 +388,20 @@ function render(items, displayDays = 7, config = null) {
           eventDiv.appendChild(timeSpan);
           eventDiv.appendChild(document.createTextNode(' • '));
         }
-        
+
         const titleSpan = domElementPool.getSpan();
         titleSpan.className = 'title';
         titleSpan.textContent = ev.summary || 'No title';
         eventDiv.appendChild(titleSpan);
-        
+
         // Create a unique ID for this event
         const eventId = `${formatLocalDateKey(d)}-${ev.summary}-${timeText}`;
         eventDiv.dataset.eventId = eventId;
-        
+
         dayDiv.appendChild(eventDiv);
       }
     }
-    
+
     frag.appendChild(dayDiv);
   }
 
@@ -403,23 +417,23 @@ function render(items, displayDays = 7, config = null) {
 // Setup mark as done functionality using event delegation (memory efficient)
 function setupEventMarkDoneDelegate() {
   if (!listEl) return;
-  
+
   window.electronAPI.getConfig().then(config => {
     if (!config.ui || !config.ui.enableMarkDone) {
       return;
     }
-    
+
     const method = config.ui.markDoneMethod || 'right-click';
-    
+
     // Remove old delegation listeners first
     listEl.removeEventListener('contextmenu', handleEventContextMenu);
     listEl.removeEventListener('dblclick', handleEventDblClick);
-    
+
     // Right-click context menu using delegation
     if (method === 'right-click') {
       listEl.addEventListener('contextmenu', handleEventContextMenu);
     }
-    
+
     // Double-click toggle using delegation
     if (method === 'double-click') {
       listEl.addEventListener('dblclick', handleEventDblClick);
@@ -432,7 +446,7 @@ function setupEventMarkDoneDelegate() {
 function handleEventContextMenu(e) {
   const eventDiv = e.target.closest('.event');
   if (!eventDiv) return;
-  
+
   e.preventDefault();
   const eventId = eventDiv.dataset.eventId;
   if (eventId) {
@@ -443,18 +457,12 @@ function handleEventContextMenu(e) {
 function handleEventDblClick(e) {
   const eventDiv = e.target.closest('.event');
   if (!eventDiv) return;
-  
+
   e.preventDefault();
   const eventId = eventDiv.dataset.eventId;
   if (eventId) {
     toggleEventDone(eventDiv, eventId);
   }
-}
-
-// Setup mark as done functionality for an event (legacy - kept for compatibility)
-function setupEventMarkDone(eventDiv, eventId) {
-  // No longer needed with delegation, but kept for compatibility
-  return;
 }
 
 // Show context menu for event
@@ -464,7 +472,7 @@ function showEventContextMenu(eventDiv, eventId, x, y) {
   if (existing) {
     existing.remove();
   }
-  
+
   const menu = document.createElement('div');
   menu.id = 'event-context-menu';
   menu.style.cssText = `
@@ -480,9 +488,9 @@ function showEventContextMenu(eventDiv, eventId, x, y) {
     font-size: 13px;
     pointer-events: auto;
   `;
-  
+
   const isCompleted = eventDiv.classList.contains('completed');
-  
+
   const button = document.createElement('button');
   button.style.cssText = `
     display: block;
@@ -503,14 +511,14 @@ function showEventContextMenu(eventDiv, eventId, x, y) {
     toggleEventDone(eventDiv, eventId);
     menu.remove();
   };
-  
+
   menu.appendChild(button);
   document.body.appendChild(menu);
-  
+
   // Close menu when clicking elsewhere
   setTimeout(() => {
     document.addEventListener('click', function closeMenu() {
-      try { menu.remove(); } catch (e) {}
+      try { menu.remove(); } catch (e) { }
       document.removeEventListener('click', closeMenu);
     }, { once: true });
   }, 100);
@@ -519,11 +527,11 @@ function showEventContextMenu(eventDiv, eventId, x, y) {
 // Toggle event done status
 function toggleEventDone(eventDiv, eventId) {
   eventDiv.classList.toggle('completed');
-  
+
   // Save to config
   window.electronAPI.getConfig().then(config => {
     if (!config.completedEvents) config.completedEvents = {};
-    
+
     if (eventDiv.classList.contains('completed')) {
       config.completedEvents[eventId] = true;
       // Hide completed event if showCompletedEvents is disabled
@@ -535,7 +543,7 @@ function toggleEventDone(eventDiv, eventId) {
       // Show event again if it was hidden
       eventDiv.classList.remove('hidden');
     }
-    
+
     // Save the updated config to persist changes
     window.electronAPI.saveConfig(config).catch(err => {
       // Revert the visual change if save failed
@@ -562,11 +570,11 @@ function applyCompletedEventStyles() {
       if (config.completedEvents[eventId]) {
         eventDiv.classList.add('completed');
       }
-      
+
       // Hide completed AND past events when showCompletedEvents is OFF
       const isPast = eventDiv.classList.contains('past');
       const isCompleted = eventDiv.classList.contains('completed');
-      
+
       if (!config.ui || config.ui.showCompletedEvents === false) {
         // Hide both completed events and past events
         if (isCompleted || isPast) {
@@ -588,7 +596,7 @@ function applyCompletedEventStyles() {
     }
     // Persist config if we removed stale entries
     if (removed) {
-      window.electronAPI.saveConfig(config).catch(() => {});
+      window.electronAPI.saveConfig(config).catch(() => { });
     }
   });
 }
@@ -599,7 +607,7 @@ async function load() {
   setStatus('Loading events...');
   try {
     if (!window.electronAPI || !window.electronAPI.listConfig) throw new Error('IPC not available');
-    
+
     const cfg = await window.electronAPI.listConfig();
     if (!cfg.acceptedTerms) {
       if (listEl) listEl.innerHTML = '<div class="no-events">Please accept Terms & Conditions first.</div>';
@@ -609,28 +617,28 @@ async function load() {
 
     if (!window.electronAPI.fetchEvents) throw new Error('fetchEvents not available');
     const items = await window.electronAPI.fetchEvents();
-    
+
     // Get days to display from config (always days mode)
     let displayDays = Number(cfg.ui?.displayDays) || 14;  // Match main.js default of 14, not 7
     displayDays = Math.max(1, Math.min(30, displayDays));  // Also match main.js clamp to 30, not 14
     render(items, displayDays, cfg);
-    
+
     // Check for upcoming events and show notification if enabled
     if (cfg.ui?.eventNotifications && items.length > 0) {
       const now = new Date();
       const soon = new Date(now.getTime() + 15 * 60000); // Next 15 minutes
-      
+
       for (const ev of items) {
         const start = parseEventDateObj(ev.start || {});
         if (start && start > now && start <= soon) {
-          const timeText = start.toLocaleTimeString([], { hour:'numeric', minute:'2-digit' });
+          const timeText = start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
           if (window.electronAPI?.showNotification) {
             await window.electronAPI.showNotification(ev.summary, timeText);
           }
         }
       }
     }
-    
+
     setStatus('');
   } catch (err) {
     setStatus('Failed to load events');
@@ -651,10 +659,10 @@ async function reportAppSize() {
 
     const list = document.getElementById('list');
     const status = document.getElementById('status');
-  // Use the full scrollHeight of the app container for an accurate content height
-  // This includes all children and any overflow content produced by the list.
-  desiredWidth = Math.max(desiredWidth, Math.ceil(el.scrollWidth || rect.width));
-  const desiredHeight = Math.ceil((el.scrollHeight || rect.height) + 24); // cushion for rounding and decorations
+    // Use the full scrollHeight of the app container for an accurate content height
+    // This includes all children and any overflow content produced by the list.
+    desiredWidth = Math.max(desiredWidth, Math.ceil(el.scrollWidth || rect.width));
+    const desiredHeight = Math.ceil((el.scrollHeight || rect.height) + 24); // cushion for rounding and decorations
 
     try {
       await window.electronAPI.setWindowBounds('main', {
@@ -679,7 +687,7 @@ async function applyUiFromConfig(cfg) {
     if (!cfg || !cfg.ui) return;
     const ui = cfg.ui;
     const root = document.documentElement;
-    
+
     if (ui.fontFamily) root.style.setProperty('--app-font-family', ui.fontFamily);
     if (ui.fontSize) {
       const fs = Number(ui.fontSize) || 13;
@@ -687,57 +695,57 @@ async function applyUiFromConfig(cfg) {
       root.style.setProperty('--app-font-small', `${Math.max(10, fs - 2)}px`);
       root.style.setProperty('--app-font-large', `${Math.max(12, fs + 1)}px`);
     }
-  if (ui.scheduleColor) root.style.setProperty('--schedule-color', ui.scheduleColor);
-  if (ui.dateTimeColor) root.style.setProperty('--date-time-color', ui.dateTimeColor);
-  if (ui.highlightColor) {
-    root.style.setProperty('--highlight-color', ui.highlightColor);
-    // compute a subtle rgba background for highlights (12% alpha)
-    try {
-      const hex = ui.highlightColor.replace('#','');
-      const r = parseInt(hex.substring(0,2),16);
-      const g = parseInt(hex.substring(2,4),16);
-      const b = parseInt(hex.substring(4,6),16);
-      root.style.setProperty('--highlight-rgba', `rgba(${r}, ${g}, ${b}, 0.12)`);
-    } catch (e) { root.style.setProperty('--highlight-rgba', 'rgba(163,255,51,0.12)'); }
-    // Also use highlightColor for ongoing events by default
-    root.style.setProperty('--ongoing-color', ui.highlightColor);
-    root.style.setProperty('--ongoing-rgba', `rgba(${parseInt(ui.highlightColor.substring(1,3),16)}, ${parseInt(ui.highlightColor.substring(3,5),16)}, ${parseInt(ui.highlightColor.substring(5,7),16)}, 0.12)`);
-  }
-  // Use upcomingColor if available, fallback to highlightColor for backward compatibility
-  if (ui.upcomingColor) {
-    root.style.setProperty('--upcoming-color', ui.upcomingColor);
-    // compute a subtle rgba background for upcoming events (12% alpha)
-    try {
-      const hex = ui.upcomingColor.replace('#','');
-      const r = parseInt(hex.substring(0,2),16);
-      const g = parseInt(hex.substring(2,4),16);
-      const b = parseInt(hex.substring(4,6),16);
-      root.style.setProperty('--upcoming-rgba', `rgba(${r}, ${g}, ${b}, 0.12)`);
-    } catch (e) { root.style.setProperty('--upcoming-rgba', 'rgba(163,255,51,0.12)'); }
-  } else if (ui.highlightColor) {
-    // Fallback to highlightColor if upcomingColor not set
-    root.style.setProperty('--upcoming-color', ui.highlightColor);
-    try {
-      const hex = ui.highlightColor.replace('#','');
-      const r = parseInt(hex.substring(0,2),16);
-      const g = parseInt(hex.substring(2,4),16);
-      const b = parseInt(hex.substring(4,6),16);
-      root.style.setProperty('--upcoming-rgba', `rgba(${r}, ${g}, ${b}, 0.12)`);
-    } catch (e) { root.style.setProperty('--upcoming-rgba', 'rgba(163,255,51,0.12)'); }
-  }
-  if (ui.dayColor) root.style.setProperty('--day-color', ui.dayColor);
-  if (ui.dateColor) root.style.setProperty('--date-color', ui.dateColor);
-  if (ui.dateSpacing) root.style.setProperty('--date-spacing', ui.dateSpacing + 'px');
-  if (ui.clockColor) root.style.setProperty('--clock-color', ui.clockColor);
-  if (ui.clockFontFamily) root.style.setProperty('--clock-font-family', ui.clockFontFamily);
-  if (ui.clockSize) root.style.setProperty('--clock-size', ui.clockSize + 'px');
-  if (ui.clockAlignment) root.style.setProperty('--clock-alignment', ui.clockAlignment);
-  
-  // Start/stop clock updates based on config - ONLY if showClock is explicitly in the update
-  // This prevents the clock from being hidden when partial config updates are received
-  if (ui.hasOwnProperty('showClock') || ui.hasOwnProperty('clock12Hour')) {
-    startClockUpdates(cfg);
-  }
+    if (ui.scheduleColor) root.style.setProperty('--schedule-color', ui.scheduleColor);
+    if (ui.dateTimeColor) root.style.setProperty('--date-time-color', ui.dateTimeColor);
+    if (ui.highlightColor) {
+      root.style.setProperty('--highlight-color', ui.highlightColor);
+      // compute a subtle rgba background for highlights (12% alpha)
+      try {
+        const hex = ui.highlightColor.replace('#', '');
+        const r = parseInt(hex.substring(0, 2), 16);
+        const g = parseInt(hex.substring(2, 4), 16);
+        const b = parseInt(hex.substring(4, 6), 16);
+        root.style.setProperty('--highlight-rgba', `rgba(${r}, ${g}, ${b}, 0.12)`);
+      } catch (e) { root.style.setProperty('--highlight-rgba', 'rgba(163,255,51,0.12)'); }
+      // Also use highlightColor for ongoing events by default
+      root.style.setProperty('--ongoing-color', ui.highlightColor);
+      root.style.setProperty('--ongoing-rgba', `rgba(${parseInt(ui.highlightColor.substring(1, 3), 16)}, ${parseInt(ui.highlightColor.substring(3, 5), 16)}, ${parseInt(ui.highlightColor.substring(5, 7), 16)}, 0.12)`);
+    }
+    // Use upcomingColor if available, fallback to highlightColor for backward compatibility
+    if (ui.upcomingColor) {
+      root.style.setProperty('--upcoming-color', ui.upcomingColor);
+      // compute a subtle rgba background for upcoming events (12% alpha)
+      try {
+        const hex = ui.upcomingColor.replace('#', '');
+        const r = parseInt(hex.substring(0, 2), 16);
+        const g = parseInt(hex.substring(2, 4), 16);
+        const b = parseInt(hex.substring(4, 6), 16);
+        root.style.setProperty('--upcoming-rgba', `rgba(${r}, ${g}, ${b}, 0.12)`);
+      } catch (e) { root.style.setProperty('--upcoming-rgba', 'rgba(163,255,51,0.12)'); }
+    } else if (ui.highlightColor) {
+      // Fallback to highlightColor if upcomingColor not set
+      root.style.setProperty('--upcoming-color', ui.highlightColor);
+      try {
+        const hex = ui.highlightColor.replace('#', '');
+        const r = parseInt(hex.substring(0, 2), 16);
+        const g = parseInt(hex.substring(2, 4), 16);
+        const b = parseInt(hex.substring(4, 6), 16);
+        root.style.setProperty('--upcoming-rgba', `rgba(${r}, ${g}, ${b}, 0.12)`);
+      } catch (e) { root.style.setProperty('--upcoming-rgba', 'rgba(163,255,51,0.12)'); }
+    }
+    if (ui.dayColor) root.style.setProperty('--day-color', ui.dayColor);
+    if (ui.dateColor) root.style.setProperty('--date-color', ui.dateColor);
+    if (ui.dateSpacing) root.style.setProperty('--date-spacing', ui.dateSpacing + 'px');
+    if (ui.clockColor) root.style.setProperty('--clock-color', ui.clockColor);
+    if (ui.clockFontFamily) root.style.setProperty('--clock-font-family', ui.clockFontFamily);
+    if (ui.clockSize) root.style.setProperty('--clock-size', ui.clockSize + 'px');
+    if (ui.clockAlignment) root.style.setProperty('--clock-alignment', ui.clockAlignment);
+
+    // Start/stop clock updates based on config - ONLY if showClock is explicitly in the update
+    // This prevents the clock from being hidden when partial config updates are received
+    if (ui.hasOwnProperty('showClock') || ui.hasOwnProperty('clock12Hour')) {
+      startClockUpdates(cfg);
+    }
   } catch (e) { /* ignore */ }
 }
 
@@ -749,9 +757,9 @@ if (refreshBtn) refreshBtn.addEventListener('click', async () => {
     const doClear = cfg?.ui?.autoClearOnRefresh === true;
     if (doClear) {
       // Clear renderer pools first
-      try { if (domElementPool) domElementPool.clearPool(); } catch (e) {}
+      try { if (domElementPool) domElementPool.clearPool(); } catch (e) { }
       // Request main GC (best-effort) if available
-      try { if (window.electronAPI && window.electronAPI.requestMainGC) await window.electronAPI.requestMainGC(); } catch (e) {}
+      try { if (window.electronAPI && window.electronAPI.requestMainGC) await window.electronAPI.requestMainGC(); } catch (e) { }
     }
     await load();
   } catch (e) {
@@ -771,19 +779,19 @@ if (homeBtn) homeBtn.addEventListener('click', async () => {
 // Solution: temporarily disable click-through when hovering over UI elements.
 (function setupClickThroughHover() {
   const controlElements = document.querySelectorAll('button, input, select, textarea, a, [role="button"]');
-  
+
   const enableClickThrough = async () => {
     if (clickThroughEnabled && window.electronAPI && window.electronAPI.setClickThrough) {
       try { await window.electronAPI.setClickThrough('main', true); } catch (e) { }
     }
   };
-  
+
   const disableClickThrough = async () => {
     if (clickThroughEnabled && window.electronAPI && window.electronAPI.setClickThrough) {
       try { await window.electronAPI.setClickThrough('main', false); } catch (e) { }
     }
   };
-  
+
   // When hovering over interactive elements, disable click-through so they're clickable
   controlElements.forEach(el => {
     el.addEventListener('mouseenter', disableClickThrough);
@@ -820,7 +828,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       lastX = ev.screenX;
       lastY = ev.screenY;
       // capture the pointer to receive moves even when outside
-      try { ev.target.setPointerCapture(pointerId); } catch (e) {}
+      try { ev.target.setPointerCapture(pointerId); } catch (e) { }
     };
 
     const onPointerMove = async (ev) => {
@@ -837,7 +845,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       if (!dragging) return;
       dragging = false;
       pointerId = null;
-      try { ev.target.releasePointerCapture && ev.target.releasePointerCapture(ev.pointerId); } catch (e) {}
+      try { ev.target.releasePointerCapture && ev.target.releasePointerCapture(ev.pointerId); } catch (e) { }
     };
 
     dragContainer.addEventListener('pointerdown', onPointerDown, { passive: true });
@@ -868,13 +876,13 @@ window.addEventListener('DOMContentLoaded', async () => {
       try {
         // Keep UI settings in sync
         applyUiFromConfig(cfg);
-        
+
         // Sync click-through state if changed externally (tray/global shortcut)
         if (cfg && cfg.ui && typeof cfg.ui.clickThrough === 'boolean') {
           const next = !!cfg.ui.clickThrough;
           clickThroughEnabled = next;
         }
-        
+
         // CRITICAL FIX: Only sync collapsed state if it's explicitly present in the update
         // AND it's different from current state. This prevents unwanted toggling when
         // config-updated events are sent for other properties (like clickThrough).
@@ -888,7 +896,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         }
         // If collapsed is not in the update (not hasOwnProperty), don't touch it at all
         // This is the key fix: we only sync collapsed when it's explicitly in the update
-        
+
         if (typeof load === 'function') load();
       } catch (e) { /* ignore */ }
     });
@@ -916,7 +924,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   load();
   // Ensure layout stabilization: request size twice (immediately and after a short delay)
-  setTimeout(() => { try { if (typeof reportAppSize === 'function') reportAppSize(); } catch (e) {} }, 250);
+  setTimeout(() => { try { if (typeof reportAppSize === 'function') reportAppSize(); } catch (e) { } }, 250);
 });
 
 // Drag handle behavior: while pressing on drag-handle, make window clickable to allow dragging,
@@ -965,7 +973,7 @@ function showLeftTip(text, ms = 2000) {
       b.style.left = '12px';
       b.style.transform = 'none';
       b.style.right = 'auto';
-  b.style.bottom = 'auto';
+      b.style.bottom = 'auto';
       b.style.maxWidth = 'calc(100% - 36px)';
       b.style.overflow = 'hidden';
       b.style.textOverflow = 'ellipsis';
@@ -987,19 +995,19 @@ function showLeftTip(text, ms = 2000) {
     try {
       const contentEl = document.getElementById('list') || document.getElementById('drag-handle') || appEl;
       if (contentEl && appEl) {
-  const relTop = contentEl.offsetTop + contentEl.offsetHeight + 8;
-  b.style.top = relTop + 'px';
-  b.style.bottom = 'auto';
+        const relTop = contentEl.offsetTop + contentEl.offsetHeight + 8;
+        b.style.top = relTop + 'px';
+        b.style.bottom = 'auto';
       }
     } catch (e) { /* ignore layout compute errors */ }
 
     // Make sure it's visible
     b.style.display = 'block';
     b.style.opacity = '1';
-    try { if (b._hideTimer) clearTimeout(b._hideTimer); } catch (e) {}
+    try { if (b._hideTimer) clearTimeout(b._hideTimer); } catch (e) { }
     b._hideTimer = setTimeout(() => {
-      try { b.style.opacity = '0'; } catch (e) {}
-      try { setTimeout(()=>{ b.style.display = 'none'; }, 250); } catch (e) {}
+      try { b.style.opacity = '0'; } catch (e) { }
+      try { setTimeout(() => { b.style.display = 'none'; }, 250); } catch (e) { }
     }, ms);
   } catch (e) { /* ignore */ }
 }
@@ -1011,7 +1019,7 @@ try {
     window.electronAPI.onPerformMemoryClean(() => {
       try {
         if (domElementPool) domElementPool.clearPool();
-        try { if (typeof window.gc === 'function') window.gc(); } catch (e) {}
+        try { if (typeof window.gc === 'function') window.gc(); } catch (e) { }
         try { load(); } catch (e) { /* ignore */ }
       } catch (e) { /* ignore */ }
     });
